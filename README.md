@@ -1,10 +1,12 @@
-# YOTO JSON Extractor
+# 🎵🎶 **YOTO JSON Extractor** 🎶🎵
+
+![Total Lines](https://img.shields.io/badge/Total%20Lines-167-brightgreen) ![Code Size](https://img.shields.io/github/languages/code-size/afsenovilla/YOTO-json-extractor) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)
 
 **YOTO JSON Extractor** is a Python-based tool that helps you download and process JSON data from Yoto URLs. It extracts audio files and images, organizes them into folders, and embeds metadata into audio files for easier management of Yoto card content.
 
 ---
 
-## Features
+## Features ✨
 
 - **Extracts JSON**: Downloads and processes JSON from multiple Yoto URLs at once.
 - **Audio and Image Downloading**: Downloads audio files (AAC/MP3) and their associated images.
@@ -14,7 +16,20 @@
 
 ---
 
-## Installation
+## Compiled Version 💾
+
+### **Executable File Available!**
+A **compiled version** of the YOTO JSON Extractor is available as an executable file (`.exe`). 
+
+#### **Benefits of the Executable Version:**
+- **No Installation Required:** Users can run the application without needing to install Python or any dependencies.
+- **User-Friendly:** Simply double-click the executable file to start using the tool, making it accessible for all users.
+
+To get started with the executable version, just download the `.exe` file from the Releases section and double-click to run!
+
+---
+
+## Installation ⚙️
 
 ### 1. Clone the Repository
 
@@ -33,7 +48,7 @@ Make sure you have Python installed. Then install the required Python packages b
 pip install -r requirements.txt
 ```
 
-### Dependencies
+### Dependencies 📦
 
 This project requires the following Python libraries:
 
@@ -44,7 +59,7 @@ This project requires the following Python libraries:
 
 ---
 
-## Usage
+## Usage 🛠️
 
 1. Run the script using Python:
 
@@ -52,11 +67,12 @@ This project requires the following Python libraries:
    python YOTO.py
    ```
 
-2. Enter the Yoto URLs (one per line) into the provided text area.
-3. Click the "Extract files" button to begin the extraction process.
+2. Input one or multiple YOTO URLs into the text area.
+3. Click the "Extract files" button to start the download and processing.
+4. The processed files will be saved in a newly created directory named after the title of the content.
 
 ---
 
-## License
+## License 📝
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
