@@ -6,7 +6,7 @@
 
 ---
 
-## Features ✨
+## ✨ Features
 
 - **Extracts JSON**: Downloads and processes JSON from multiple Yoto URLs at once.
 - **Audio and Image Downloading**: Downloads audio files (AAC/MP3) and their associated images.
@@ -16,7 +16,7 @@
 
 ---
 
-## Compiled Version 💾
+## 💾 Compiled Version
 
 ### **Executable File Available!**
 A **compiled version** of the YOTO JSON Extractor is available as an executable file (`.exe`). 
@@ -29,7 +29,7 @@ To get started with the executable version, just download the `.exe` file from t
 
 ---
 
-## Installation ⚙️
+## ⚙️ Installation 
 
 ### 1. Clone the Repository
 
@@ -48,7 +48,7 @@ Make sure you have Python installed. Then install the required Python packages b
 pip install -r requirements.txt
 ```
 
-### Dependencies 📦
+#### 📦 Dependencies 
 
 This project requires the following Python libraries:
 
@@ -59,7 +59,7 @@ This project requires the following Python libraries:
 
 ---
 
-## Usage 🛠️
+## 🛠️ Usage 
 
 1. Run the script using Python:
 
@@ -70,6 +70,44 @@ This project requires the following Python libraries:
 2. Input one or multiple YOTO URLs into the text area.
 3. Click the "Extract files" button to start the download and processing.
 4. The processed files will be saved in a newly created directory named after the title of the content.
+
+---
+
+## 📋 Fequently Asked Questions 
+
+### 1. How do I get the URL from a YOTO card?
+To extract the URL from a physical YOTO card, you'll need a smartphone and the **NXP TagInfo** app, available for both iOS and Android.
+
+**Steps:**
+1. Download and install the **NXP TagInfo** app from the [App Store](https://apps.apple.com/es/app/nfc-taginfo-by-nxp/id1246143596) or [Google Play Store](https://play.google.com/store/apps/details?id=com.nxp.taginfolite).
+2. Open the app and touch the **Scan & Launch** button.
+2. Tap the YOTO card against the NFC reader on your smartphone.
+3. The app will read the NFC tag and display the URL associated with the YOTO card.
+4. Copy the URL and paste it in the **YOTO JSON Extractor**.
+
+### 2. What should I do if the download fails?
+Ensure that the provided YOTO URL is correct. If the issue persists, check your internet connection.
+
+### 3. Can I process multiple URLs at once?
+Yes! You can input multiple YOTO URLs separated by new lines in the **YOTO JSON Extractor** and process them in batches.
+
+### 4. What file formats are supported?
+The tool currently supports downloading audio files in **AAC** or **MP3** format, depending on what’s available in the YOTO JSON data.
+
+---
+
+## 📝 To-Do List
+
+- [ ] Add progress bar to the GUI for download status
+- [ ] Add user settings for customizing download options
+- [ ] Improve metadata customization options
+- [ ] Implement support for more audio formats
+- [ ] Optimize error handling for specific network issues
+- [ ] Test cross-platform compatibility
+- [ ] Make the app available for macOS users
+- [ ] Make the app available for Linux users
+- [ ] Create a logo
+
 
 ---
 
