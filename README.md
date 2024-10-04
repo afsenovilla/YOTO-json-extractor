@@ -98,10 +98,10 @@ The tool currently supports downloading audio files in **AAC** or **MP3** format
 
 ## 📝 To-Do List
 
-- [ ] Add progress bar to the GUI for download status
-- [ ] Add user settings for customizing download options
+- [X] Add progress bar to the GUI for download status
+- X ] Add user settings for customizing download options
 - [ ] Improve metadata customization options
-- [ ] Implement support for more audio formats
+- [X] Implement support for more audio formats
 - [ ] Optimize error handling for specific network issues
 - [ ] Test cross-platform compatibility
 - [ ] Make the app available for macOS users
