@@ -2,17 +2,17 @@
 
 ![Code Size](https://img.shields.io/github/languages/code-size/afsenovilla/YOTO-json-extractor) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)
 
-**YOTO JSON Extractor** is a Python-based tool that helps you download and process JSON data from Yoto URLs. It extracts audio files and images, organizes them into folders, and embeds metadata into audio files for easier management of Yoto card content.
+**YOTO JSON Extractor** is a Python-based tool that helps you download and process JSON data from Yoto URLs. It extracts and compress audio files and images, and embeds metadata into audio files for easier management of Yoto card content.
 
 ---
 
 ## ✨ Features
 
-- **Extracts JSON**: Downloads and processes JSON from multiple Yoto URLs at once.
+- **Extracts JSON**: Downloads and processes information from multiple Yoto URLs at once.
 - **Audio and Image Downloading**: Downloads audio files (AAC/MP3) and their associated images.
-- **Metadata Embedding**: Automatically embeds metadata such as title, album, artist, genre, and year into audio files.
-- **Automated Folder Management**: Organizes downloaded files into respective folders for audio and images.
-- **Automatic Cleanup**: Deletes the JSON file after the extraction process.
+- **Metadata Embedding**: Automatically embeds metadata such as title, track, album, artist and genre into audio files.
+- **Automated Management**: Organizes downloaded cards into respective compressed folders with audio and images.
+- **Automatic Cleanup**: Deletes the folders and JSON files after the extraction process.
 
 ---
 
@@ -48,14 +48,15 @@ Make sure you have Python installed. Then install the required Python packages b
 pip install -r requirements.txt
 ```
 
-#### 📦 Dependencies 
+#### 📦 Dependencies
 
 This project requires the following Python libraries:
 
-- **requests** – For handling HTTP requests to download JSON and media.
-- **beautifulsoup4** – To parse HTML and extract relevant data.
-- **mutagen** – For embedding metadata into audio files (supports AAC and MP3).
-- **customtkinter** – For creating a modern graphical user interface (GUI).
+- **requests**: For handling HTTP requests to download JSON and media.
+- **beautifulsoup4**: To parse HTML and extract relevant data.
+- **mutagen**: For embedding metadata into audio files (supports AAC and MP3).
+- **customtkinter**: For creating a modern graphical user interface (GUI).
+- **py7zr**: For handling compressed files in `.7z` format.
 
 ---
 
@@ -69,7 +70,7 @@ This project requires the following Python libraries:
 
 2. Input one or multiple YOTO URLs into the text area.
 3. Click the "Extract files" button to start the download and processing.
-4. The processed files will be saved in a newly created directory named after the title of the content.
+4. The processed files and folders will be saved and the compressed in the directory of your choice.
 
 ---
 
