@@ -496,7 +496,7 @@ def process_json(data, title, url):
 root = ctk.CTk()
 root.title("YOTO Json Extractor")
 root.geometry("450x450")
-root.wm_iconbitmap("YOTO json extractor\YJE.ico")
+root.iconbitmap(r"YOTO json extractor\YJE.ico")
 
 save_directory = ''
 
