@@ -1,14 +1,14 @@
 import customtkinter as ctk
+from CTkMessagebox import CTkMessagebox
 import requests
 from bs4 import BeautifulSoup
 import json
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, filedialog
+from tkinter import messagebox, filedialog
 import os
 import re
-from mutagen.mp4 import MP4, MP4Cover
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, TIT2, TALB, TPE1, TCON, TYER
+from mutagen.id3 import ID3NoHeaderError, ID3, TIT2, TALB, TPE1, TCON, TRCK, APIC
 import threading
 import time
 import traceback
@@ -18,7 +18,6 @@ import shutil
 
 ctk.set_appearance_mode("system")
 debug_mode = True
-
 
 def compress_folder(folder_path, output_path):
     with py7zr.SevenZipFile(output_path, 'w') as archive:
@@ -42,7 +41,7 @@ def convert_seconds(seconds):
     return "%d:%02d:%02d" % (hours, minutes, seconds)
 
 def convert_bytes(num, suffix='B'):
-    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
+    for unit in ['', 'K', 'M', 'G']:
         if abs(num) < 1024.0:
             return f"{num:3.1f} {unit}{suffix}"
         num /= 1024.0
@@ -62,10 +61,11 @@ def download_and_process_json():
     urls = url_text.get("1.0", tk.END).strip().splitlines()
     
     if not urls:
-        messagebox.showwarning("Warning", "Please enter at least one URL.")
+        CTkMessagebox(title="Warning", message="Please enter at least one URL.", 
+                      icon="warning", option_1="Ok")
         return
     
-    messagebox.showinfo("Info", "A folder will be created for each URL, containing subfolders for audio files and images.")
+    CTkMessagebox(title="Info", message="A compressed file will be created for each URL, containing folders for audio files and images.")
 
     progress_bar.pack(pady=10)
     progress_bar.set(0)
@@ -86,7 +86,7 @@ def process_urls(urls):
     attempts = 0
 
     while index < len(urls):
-        attempts += 1 # keey track of how many times a URL has been tried, skip it if we have tried it too many times.
+        attempts += 1 # keep track of how many times a URL has been tried, skip it if we have tried it too many times.
         url = urls[index]
         if url: 
             if attempts < 10:
@@ -134,7 +134,8 @@ def process_urls(urls):
 
     download_button.configure(state=tk.NORMAL, text="Extract files")
     progress_bar.pack_forget()
-    messagebox.showinfo("Success", "All downloads and processing completed successfully.")
+    CTkMessagebox(message="All downloads and processing completed successfully.",
+                  icon="check")
 
 def process_json(data, title, url):
     downloads_dir = os.path.join(save_directory, clean_filename(title))
@@ -304,7 +305,7 @@ def process_json(data, title, url):
     # fetch cover/card art file
     try:
         cover_image_url = data['props']['pageProps']['card']['metadata']['cover']['imageL']
-        cover_image_path = os.path.join(image_dir, 'cover_image.jpg')
+        cover_image_path = os.path.join(image_dir, 'cover_image.png')
         image_response = requests.get(cover_image_url)
 
         if image_response.status_code == 200:
@@ -338,6 +339,8 @@ def process_json(data, title, url):
             # get the audio file
             audio_url = track.get('trackUrl')
             key = track.get('key', '')
+            if len(key) > 4:
+                key = f"{track_counter:0{pad_length}d}"
             audio_format = track.get('format', 'aac')
             audio_file_name = clean_filename(f"{track_counter:0{pad_length}d} - {track['title']}.{audio_format}")
             if audio_url:
@@ -346,47 +349,67 @@ def process_json(data, title, url):
                     audio_file_path = os.path.join(audio_dir, audio_file_name)
                     with open(audio_file_path, 'wb') as audio_file:
                         audio_file.write(audio_response.content)
+                        audio = None
 
                     cardauthor = 'Yoto'
                     if author != metaundef:
                         cardauthor = author
+                        try:
+                            audio = ID3(audio_file_path)
+                        except ID3NoHeaderError:
+                            audio = ID3()
+                        except Exception as e:
+                            print(f"Error loading the audio file: {e}")
+            if audio is not None:
+                audio['TIT2'] = TIT2(encoding=3, text=[str(track['title'])])  # Title
+                audio['TPE1'] = TPE1(encoding=3, text=data['props']['pageProps']['card']['metadata']['author'])  # Artist
+                audio['TALB'] = TALB(encoding=3, text=data['props']['pageProps']['card']['title'])  # Album
+                audio['TCON'] = TCON(encoding=3, text=data['props']['pageProps']['card']['metadata']['category'])  # Genre
+                audio['TRCK'] = TRCK(encoding=3, text=[str(track['key'])])  # Track number
+                audio['COMM'] = TRCK(encoding=3, text=data['props']['pageProps']['card']['cardId'])  # Comment
 
-                    # BUG ID3 tags are not being properly written to the files
-                    if audio_format == 'aac':
-                        audio = MP4(audio_file_path)
-                        audio['\xa9nam'] = track['title']
-                        audio['\xa9ART'] = cardauthor
-                        audio['\xa9alb'] = data['props']['pageProps']['card']['title']
-                        audio['\xa9gen'] = ['Children']
-                        audio['\xa9day'] = ['2024']
+                if os.path.exists(cover_image_path):
+                            with open(cover_image_path, 'rb') as cover_file:
+                                cover_data = cover_file.read()
+                            audio['APIC'] = APIC(
+                            encoding=3, 
+                            mime='image/png', 
+                            type=3, 
+                            desc='Cover', 
+                            data=cover_data
+                        )
+                            audio.save(audio_file_path)
+                else:
+                    print(f"Unable to get metadata from file {audio_file_path}")
+            elif audio_format == 'mp3':
+                        audio['TIT2'] = TIT2(encoding=3, text=[str(track['title'])])  # Title
+                        audio['TPE1'] = TPE1(encoding=3, text=data['props']['pageProps']['card']['metadata']['author'])  # Artist
+                        audio['TALB'] = TALB(encoding=3, text=data['props']['pageProps']['card']['title'])  # Album
+                        audio['TCON'] = TCON(encoding=3, text=data['props']['pageProps']['card']['metadata']['category'])  # Genre
+                        audio['TRCK'] = TRCK(encoding=3, text=[str(track['key'])])  # Track number
+                        audio['COMM'] = TRCK(encoding=3, text=data['props']['pageProps']['card']['cardId'])  # Comment
 
                         if os.path.exists(cover_image_path):
                             with open(cover_image_path, 'rb') as cover_file:
                                 cover_data = cover_file.read()
-                                audio['covr'] = [MP4Cover(cover_data, MP4Cover.FORMAT_JPEG)]
-                        
-                        audio.save()
-                    
-                    # BUG ID3 tags are not being properly written to the files
-                    elif audio_format == 'mp3':
-                        audio = MP3(audio_file_path, ID3=ID3)
-                        audio.tags.add(TIT2(encoding=3, text=track['title']))
-                        audio.tags.add(TPE1(encoding=3, text=cardauthor))
-                        audio.tags.add(TALB(encoding=3, text=data['props']['pageProps']['card']['title']))
-                        audio.tags.add(TCON(encoding=3, text='Children'))
-                        audio.tags.add(TYER(encoding=3, text='2024'))
-
-                        audio.save()
-                    else:
+                            audio['APIC'] = APIC(
+                            encoding=3, 
+                            mime='image/png', 
+                            type=3, 
+                            desc='Cover', 
+                            data=cover_data
+                        )
+                            audio.save(audio_file_path)
+            else:
                         print(f"Unsupported format: {audio_format}; Card: {title}; File: {audio_file_name}")
                         #Note: 'pcm_s16le' is one unsupported format see on the 'Make Your Own Guide' playlist
-                else:
+        else:
                     # BUG: Figure out a way to retry if the file is not fetched
-                    print(f"Failed to download track: {aaudio_response.status_code}")
+                print(f"Failed to download track: {audio_response.status_code}")
 
             # get the icon for the track
-            display_info = chapter.get('display')
-            if display_info:
+                display_info = chapter.get('display')
+        if display_info:
                 icon_url = display_info.get('icon16x16')
                 # Note: If Yoto ever releases a new device with a larger screen, or decides to support larger format icons, this will break immediately. The 'display' json object is prepared to suport other files as well, perhaps we should reformat this to just fetch everything and dump them into different folders based on the identifier (e.g. 'icon16x16/filename.ext, icon32x32/filename.ext')
                 
@@ -409,55 +432,55 @@ def process_json(data, title, url):
                     print(f"No icon URL found in display for track: {track['title']}.")
             
             # Write the track info to the metadata file
-            trackTitle = type = trackDuration = trackReadableDuration = trackFileSize = trackReadableFileSize = channels = 'tbd'    
-            meta_tracks_file.write('TrackNumber:: ' + f"{track_counter:0{pad_length}d}" + '\n')
+        trackTitle = type = trackDuration = trackReadableDuration = trackFileSize = trackReadableFileSize = channels = 'tbd'    
+        meta_tracks_file.write('TrackNumber:: ' + f"{track_counter:0{pad_length}d}" + '\n')
             
-            try:
+        try:
                 trackTitle = track['title']
-            except:
+        except:
                 trackTitle = metaundef
                 announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/title \n\tTitle: " + title + "\n\tURL: " + url)
-            meta_tracks_file.write('Title:: ' + trackTitle + '\n')
+        meta_tracks_file.write('Title:: ' + trackTitle + '\n')
             
-            try:
+        try:
                 type = track['type']
-            except:
+        except:
                 type = metaundef
                 announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/type \n\tTitle: " + title + "\n\tURL: " + url)
-            meta_tracks_file.write('Type:: ' + type + '\n')
+        meta_tracks_file.write('Type:: ' + type + '\n')
 
-            try:
+        try:
                 #Podcasts like don't always have this data available
                 trackDuration = str(track['duration'])
                 trackReadableDuration = convert_seconds(int(trackDuration))
-            except:
+        except:
                 trackDuration = metaundef
                 trackReadableDuration = metaundef
                 announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/duration \n\tTitle: " + title + "\n\tURL: " + url)
-            meta_tracks_file.write('Duration:: ' + trackDuration + '\n') 
-            meta_tracks_file.write('ReadableDuration:: ' + trackReadableDuration + '\n')
+        meta_tracks_file.write('Duration:: ' + trackDuration + '\n') 
+        meta_tracks_file.write('ReadableDuration:: ' + trackReadableDuration + '\n')
 
-            try:
+        try:
                 trackFileSize = str(track['fileSize'])
                 trackReadableFileSize = convert_bytes(int(trackFileSize))
-            except:
+        except:
                 trackFileSize = metaundef
                 trackReadableFileSize = metaundef
-            announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/fileSize \n\tTitle: " + title + "\n\tURL: " + url)
-            meta_tracks_file.write('FileSize:: ' + trackFileSize + '\n')
-            meta_tracks_file.write('ReadableFileSize:: ' + trackReadableFileSize + '\n')
+        announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/fileSize \n\tTitle: " + title + "\n\tURL: " + url)
+        meta_tracks_file.write('FileSize:: ' + trackFileSize + '\n')
+        meta_tracks_file.write('ReadableFileSize:: ' + trackReadableFileSize + '\n')
                                    
-            try:
+        try:
                 channels = track['channels']
-            except:
+        except:
                 channels = metaundef
                 announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/channels \n\tTitle: " + title + "\n\tURL: " + url)
-            meta_tracks_file.write('Channels:: ' + channels + '\n')
-            meta_tracks_file.write('\n')
+        meta_tracks_file.write('Channels:: ' + channels + '\n')
+        meta_tracks_file.write('\n')
     meta_tracks_file.close()
 
     # zip up the completed package
-    zipname = clean_filename(title) + " (" + datetime.today().strftime('%Y-%m-%d') + ').7z';
+    zipname = clean_filename(title) + " (" + datetime.today().strftime('%Y-%m-%d') + ').7z'
     try:
         compress_folder(downloads_dir, zipname) #add the current date for archive safety
     except:
@@ -473,7 +496,7 @@ def process_json(data, title, url):
 root = ctk.CTk()
 root.title("YOTO Json Extractor")
 root.geometry("450x450")
-# root.wm_iconbitmap("YOTO json extractor\img\YJE.ico")
+root.wm_iconbitmap("YOTO json extractor\YJE.ico")
 
 save_directory = ''
 
@@ -482,7 +505,7 @@ current_dir = os.getcwd()  # Get the current directory
 save_dir_label = ctk.CTkLabel(root, text=f"Save files to: {current_dir}")
 save_dir_label.pack(pady=5)
 
-choose_dir_button = ctk.CTkButton(root, text="Choose a different folder", command=choose_directory)
+choose_dir_button = ctk.CTkButton(root, text="Select a different folder", command=choose_directory)
 choose_dir_button.pack(pady=10)
 
 divider = ctk.CTkFrame(root, height=2, width=380, fg_color="#3a7ebf")
