@@ -1,6 +1,6 @@
 # 🎵🎶 **YOTO JSON Extractor** 🎶🎵
 
-![Total Lines](https://img.shields.io/badge/Total%20Lines-167-brightgreen) ![Code Size](https://img.shields.io/github/languages/code-size/afsenovilla/YOTO-json-extractor) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)
+![Code Size](https://img.shields.io/github/languages/code-size/afsenovilla/YOTO-json-extractor) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)
 
 **YOTO JSON Extractor** is a Python-based tool that helps you download and process JSON data from Yoto URLs. It extracts audio files and images, organizes them into folders, and embeds metadata into audio files for easier management of Yoto card content.
 
@@ -106,7 +106,7 @@ The tool currently supports downloading audio files in **AAC** or **MP3** format
 - [ ] Test cross-platform compatibility
 - [ ] Make the app available for macOS users
 - [ ] Make the app available for Linux users
-- [ ] Create a logo
+- [X] Create a logo
 
 
 ---
