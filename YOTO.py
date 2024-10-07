@@ -19,6 +19,7 @@ import shutil
 ctk.set_appearance_mode("system")
 debug_mode = True
 
+
 def compress_folder(folder_path, output_path):
     with py7zr.SevenZipFile(output_path, 'w') as archive:
         archive.writeall(folder_path, os.path.basename(folder_path))
@@ -442,10 +443,9 @@ def process_json(data, title, url):
             except:
                 trackFileSize = metaundef
                 trackReadableFileSize = metaundef
-                announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/fileSize \n\tTitle: " + title + "\n\tURL: " + url)
+            announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/fileSize \n\tTitle: " + title + "\n\tURL: " + url)
             meta_tracks_file.write('FileSize:: ' + trackFileSize + '\n')
             meta_tracks_file.write('ReadableFileSize:: ' + trackReadableFileSize + '\n')
-            
                                    
             try:
                 channels = track['channels']
