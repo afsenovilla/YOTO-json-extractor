@@ -12,9 +12,17 @@ from mutagen.id3 import ID3, TIT2, TALB, TPE1, TCON, TYER
 import threading
 import time
 import traceback
+import py7zr
+from datetime import datetime
+import shutil
 
 ctk.set_appearance_mode("system")
 debug_mode = True
+
+
+def compress_folder(folder_path, output_path):
+    with py7zr.SevenZipFile(output_path, 'w') as archive:
+        archive.writeall(folder_path, os.path.basename(folder_path))
 
 def announce_message(message, type="Error", e="\nException object not provided."):
     if debug_mode:
@@ -80,44 +88,45 @@ def process_urls(urls):
     while index < len(urls):
         attempts += 1 # keey track of how many times a URL has been tried, skip it if we have tried it too many times.
         url = urls[index]
-        if url && attempts < 10:
-            url = ensure_https(url)
-            try:
-                response = requests.get(url)
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    title_tag = soup.find('meta', attrs={'name': 'title'})
-                    title = clean_filename(title_tag['content']) if title_tag and 'content' in title_tag.attrs else None
-                    
-                    if title is None:
-                        messagebox.showwarning("Error", "No 'title' meta tag found.")
-                        continue
+        if url: 
+            if attempts < 10:
+                url = ensure_https(url)
+                try:
+                    response = requests.get(url)
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        title_tag = soup.find('meta', attrs={'name': 'title'})
+                        title = clean_filename(title_tag['content']) if title_tag and 'content' in title_tag.attrs else None
+                        
+                        if title is None:
+                            messagebox.showwarning("Error", "No 'title' meta tag found.")
+                            continue
 
-                    script_tag = soup.find('script', id='__NEXT_DATA__', type='application/json')
-                    if script_tag:
-                        json_data = json.loads(script_tag.string)
-                        json_file_name = f"{title}.json"
-                        
-                        with open(json_file_name, 'w') as json_file:
-                            json.dump(json_data, json_file, indent=4)
-                        
-                        try:
-                            process_json(json_data, title, url) #passing the URL only so it can get logged in the library
-                            os.remove(json_file_name)
-                            index += 1 # move to the next item if this one processed fine
-                            attempts = 0 # reset the attempt counter
-                        except Exception as e:
-                            announce_message("An uncaught error occured parsing a playlist:\n\tURL: '" + url +"'\n\tTitle:" + title + "\n\t", "Error", e)
-                            # don't progress the index if there was an error, just retry it
+                        script_tag = soup.find('script', id='__NEXT_DATA__', type='application/json')
+                        if script_tag:
+                            json_data = json.loads(script_tag.string)
+                            json_file_name = f"{title}.json"
+                            
+                            with open(json_file_name, 'w') as json_file:
+                                json.dump(json_data, json_file, indent=4)
+                            
+                            try:
+                                process_json(json_data, title, url) #passing the URL only so it can get logged in the library
+                                os.remove(json_file_name)
+                                index += 1 # move to the next item if this one processed fine
+                                attempts = 0 # reset the attempt counter
+                            except Exception as e:
+                                announce_message("An uncaught error occured parsing a playlist:\n\tURL: '" + url +"'\n\tTitle:" + title + "\n\t", "Error", e)
+                                # don't progress the index if there was an error, just retry it
+                        else:
+                            messagebox.showwarning("Error", "No script found with ID '__NEXT_DATA__'.")
                     else:
-                        messagebox.showwarning("Error", "No script found with ID '__NEXT_DATA__'.")
-                else:
-                    messagebox.showerror("Error", f"Failed to access the URL: {response.status_code}")
-            except Exception as e:
-                messagebox.showerror("Error", f"An error occurred: {str(e)}")
-                #continue # when there's an error, this just causes the numbers to tick up
-        else:
-            messagebox.showerror("Error", f"URL has been tried 10 times and not able to complete: {url}")
+                        messagebox.showerror("Error", f"Failed to access the URL: {response.status_code}")
+                except Exception as e:
+                    messagebox.showerror("Error", f"An error occurred: {str(e)}")
+                    #continue # when there's an error, this just causes the numbers to tick up
+            else:
+                messagebox.showerror("Error", f"URL has been tried 10 times and not able to complete: {url}")
 
         completed_urls += 1
         progress_bar.set(completed_urls / total_urls)
@@ -434,9 +443,9 @@ def process_json(data, title, url):
             except:
                 trackFileSize = metaundef
                 trackReadableFileSize = metaundef
+            announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/fileSize \n\tTitle: " + title + "\n\tURL: " + url)
             meta_tracks_file.write('FileSize:: ' + trackFileSize + '\n')
             meta_tracks_file.write('ReadableFileSize:: ' + trackReadableFileSize + '\n')
-            announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/fileSize \n\tTitle: " + title + "\n\tURL: " + url)
                                    
             try:
                 channels = track['channels']
@@ -446,6 +455,19 @@ def process_json(data, title, url):
             meta_tracks_file.write('Channels:: ' + channels + '\n')
             meta_tracks_file.write('\n')
     meta_tracks_file.close()
+
+    # zip up the completed package
+    zipname = clean_filename(title) + " (" + datetime.today().strftime('%Y-%m-%d') + ').7z';
+    try:
+        compress_folder(downloads_dir, zipname) #add the current date for archive safety
+    except:
+        announce_message("Error compressing folder to 7zip file\\n\tTitle: " + title + "\n\tURL: " + url + "\n\tFilename: " + zipname)
+
+    # delete the source folder if the zip was successful
+    try:
+        shutil.rmtree(downloads_dir)
+    except:
+        announce_message("Error removing folder \\n\tTitle: " + title + "\n\tURL: " + url + "\n\tFolder: " + downloads_dir)
 
 # Main window
 root = ctk.CTk()
