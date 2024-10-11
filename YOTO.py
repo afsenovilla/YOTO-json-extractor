@@ -34,7 +34,10 @@ def announce_message(message, type=MESSAGE_TYPES['info'], e=None):
     # TODO: add logging to a file in addition to the log window
     log_text.insert(index=ctk.END, text=f"{message}\n") #write the message to the log
     if e is not None: #if there's an exception passed in, record that to the log too
-        log_text.insert(index=ctk.END, text=f"Exception: {e}\n{traceback.print_exception()}\n")
+        log_text.insert(index=ctk.END, text=f"Exception: {e}\n")
+        trace = traceback.print_exc()
+        if trace is not None: #print the stacktrace if it exists
+            log_text.insert(index=ctk.END, text=f"Trace: {trace}\n")
 
     if not silent_mode: #if user wants alerts, pop the message in a box for them
         #BUG: this doesn't pop the message boxes. I don't know why. All the messages coming into this function are logged into the Log textbox though, so that's good. but when silent_mode is false, every message coming in here should trigger a popup
@@ -59,8 +62,15 @@ def convert_bytes(num, suffix='B'):
     return f"{num:.1f}Yi{suffix}"
 
 def clean_filename(filename):
-    filename = re.sub(r'[\t]', '', filename)
-    return re.sub(r'[<>:"/\\|?*]', '', filename).strip()
+    try:
+        filename = re.sub(r'[\t]', '', filename)
+        clean_name = re.sub(r'[<>:"/\\|?*]', '', filename).strip()
+        announce_message(f"clean_Filename went from [[{filename}]] \t to [[{clean_name}]]", MESSAGE_TYPES['info'])
+        return clean_name
+    except Exception as ex:
+        announce_message(f"Clean_filename failed.", MESSAGE_TYPES['error'], ex)
+        return None
+
 
 def choose_directory():
     folder_selected = tk.filedialog.askdirectory()
@@ -132,84 +142,89 @@ def process_urls(urls):
         attempts += 1 # keep track of how many times a URL has been tried, skip it if we have tried it too many times.
         url = urls[index] #BUG: this line keeps throwing out of bounds exceptions
         url_status = STATUS['ok']
-
-        if url: 
-            announce_message(f"\tAttempt {attempts} for {url}", MESSAGE_TYPES['info'])
-            if attempts < 10:
-                url = ensure_https(url)
-                try:
-                    response = requests.get(url)
-                    if response.status_code == 200:
-                        soup = BeautifulSoup(response.text, 'html.parser')
-                        title_tag = soup.find('meta', attrs={'name': 'title'})
-                        title = clean_filename(title_tag['content']) if title_tag and 'content' in title_tag.attrs else None
-                    
-                        if title is None:
-                            announce_message(f"\tNo 'title' meta tag found in JSON blob.", MESSAGE_TYPES['error'])
-                            url_status = STATUS['fail']
-                            #continue # I'm not sure if we need the continue here or not. I think with the new error handling logic, its not needed
+        try:
+            if url: 
+                announce_message(f"\tAttempt {attempts} for {url}", MESSAGE_TYPES['info'])
+                if attempts < 10:
+                    url = ensure_https(url)
+                    try:
+                        response = requests.get(url)
+                        if response.status_code == 200:
+                            soup = BeautifulSoup(response.text, 'html.parser')
+                            script_tag = soup.find('script', id='__NEXT_DATA__', type='application/json')
+                            if script_tag is None:
+                                announce_message(f"\tNo script found with ID '__NEXT_DATA__'.", MESSAGE_TYPES['error'])
+                                url_status = STATUS['fail']
+                                raise ValueError("Script tag is blank.")
+                            else:
+                                json_data = json.loads(script_tag.string)
+                                try:
+                                    card = json_data['props']['pageProps']['card']
+                                    announce_message(f"\tCard object found.", MESSAGE_TYPES['info'])
+                                    try:
+                                        title_tag = card['title']
+                                        title = clean_filename(title_tag)
+                                        announce_message(f"\tTitle: {title}", MESSAGE_TYPES['info'])
+                                        json_file_name = f"{title}.json"
+                                        
+                                        try:
+                                            with open(json_file_name, 'w') as json_file:
+                                                json.dump(json_data, json_file, indent=4)
+                                                announce_message(f"\tJSON data temporarily stored in {json_file}", MESSAGE_TYPES['info'])
+                                        except Exception as ex:
+                                                announce_message(f"\tError storing JSON data in temp file: {json_file}", MESSAGE_TYPES['error'], ex)
+                                                url_status = STATUS['retry']
+                                            
+                                        announce_message(f"\tCleaning up temporary JSON file.", MESSAGE_TYPES['info'])
+                                        try:
+                                            process_json(json_data, title, url) #passing the URL only so it can get logged in the library
+                                            os.remove(json_file_name)
+                                            announce_message(f"\tTemporary JSON file deleted.", MESSAGE_TYPES['info'])
+                                            url_status = STATUS['ok']
+                                        except Exception as e:
+                                            announce_message(f"\tAn uncaught error occured parsing a playlist.", MESSAGE_TYPES['error'], e)
+                                            url_status = STATUS['retry'] # don't progress the index if there was an error, just retry it  
+                                    except Exception as ex:
+                                        announce_message(f"\tNo 'title' meta tag found in JSON blob.", MESSAGE_TYPES['error'])
+                                        url_status = STATUS['fail']
+                                        #raise ValueError("Title not found.")
+                                except Exception as ex:
+                                    announce_message(f"\tNo 'card' object found in JSON blob.", MESSAGE_TYPES['error'])
+                                    url_status = STATUS['fail']
+                                    #raise ValueError("Card is blank.")                             
                         else:
-                            announce_message(f"\tTitle: {title}", MESSAGE_TYPES['info'])
-
-                        script_tag = soup.find('script', id='__NEXT_DATA__', type='application/json')
-                        card = script_tag['card'] if script_tag and 'card' in script_tag else None
-
-                        if card is None:
+                            announce_message(f"\tFailed to access the URL: {response.status_code}", MESSAGE_TYPES['error'])
                             url_status = STATUS['fail']
-                            announce_message(f"\tNo 'card' object found in JSON blob.", MESSAGE_TYPES['error'])
-                        else:
-                            announce_message(f"\tCard object found.", MESSAGE_TYPES['info'])
-                        
-                        if script_tag:
-                            json_data = json.loads(script_tag.string)
-                            json_file_name = f"{title}.json"
-                            
-                            with open(json_file_name, 'w') as json_file:
-                                json.dump(json_data, json_file, indent=4)
-                                announce_message(f"\tJSON data temporarily stored in {json_file}", MESSAGE_TYPES['info'])
-                            
-                            announce_message(f"\tCleaning up temporary JSON file.", MESSAGE_TYPES['info'])
-                            try:
-                                process_json(json_data, title, url) #passing the URL only so it can get logged in the library
-                                os.remove(json_file_name)
-                                announce_message(f"\tTemporary JSON file deleted.", MESSAGE_TYPES['info'])
-                                url_status = STATUS['ok']
-                            except Exception as e:
-                                announce_message(f"\tAn uncaught error occured parsing a playlist.", MESSAGE_TYPES['error'], e)
-                                url_status = STATUS['retry'] # don't progress the index if there was an error, just retry it
-                        else:
-                            announce_message(f"\tNo script found with ID '__NEXT_DATA__'.", MESSAGE_TYPES['error'])
-                            url_status = STATUS['fail']
-                    else:
-                        announce_message(f"\tFailed to access the URL: {response.status_code}", MESSAGE_TYPES['error'])
+                    except Exception as e:
+                        announce_message(f"\tAn uncaught error occured.", MESSAGE_TYPES['error'], e)
                         url_status = STATUS['fail']
-                except Exception as e:
-                    announce_message(f"\tAn uncaught error occured.", MESSAGE_TYPES['error'], e)
+                else:
+                    announce_message(f"\tURL has been tried 10 times and not able to complete.", MESSAGE_TYPES['error'])
                     url_status = STATUS['fail']
             else:
-                announce_message(f"\tURL has been tried 10 times and not able to complete",MESSAGE_TYPES['error'])
+                announce_message(f"An error occured. Unable to process this URL:\n\tURL: {url}", MESSAGE_TYPES['error'])
                 url_status = STATUS['fail']
-        else:
-            announce_message("An error occured. Unable to process this URL:\n\tURL: " + url + "\n", "Error")
+        except Exception as ex:
+            announce_message(f"An error occured. Unable to process this data on this page:\n\tURL: {url}", MESSAGE_TYPES['error'], ex)
             url_status = STATUS['fail']
-                
-        if url_status == STATUS['ok']:
-            attempts = 0 # reset the error counter
-            index += 1 # move to the next URL
-            completed_urls += 1 # count the success
-            # update the UI
-            progress_bar.set(completed_urls / total_urls) 
-            download_button.configure(text=f"Processing... {total_urls - completed_urls} URLs left")
-            remove_string(textbox=url_queue_text, text=url) # Remove the URL/line from the queue
-            url_success_text.insert(index=ctk.END, text=f"{url}\n") # Add URL into the Completed tab
-        elif url_status == STATUS['retry']:
-            attempts += 1 # increase the error counterand repeat the same URL
-        elif url_status == STATUS['fail']:
-            attempts = 0 # reset the error counter
-            index += 1 # move to the next URL
-            remove_string(textbox=url_queue_text, text=url) # Remove the URL/line from the queue
-            url_fail_text.insert(index=ctk.END, text=f"{url}\n") # Add URL into the Failed tab
-        announce_message(f"Finished procesing {index} of {total_urls}", MESSAGE_TYPES['info'])
+        finally:                
+            if url_status == STATUS['ok']:
+                attempts = 0 # reset the error counter
+                index += 1 # move to the next URL
+                completed_urls += 1 # count the success
+                # update the UI
+                progress_bar.set(completed_urls / total_urls) 
+                download_button.configure(text=f"Processing... {total_urls - completed_urls} URLs left")
+                remove_string(textbox=url_queue_text, text=url) # Remove the URL/line from the queue
+                url_success_text.insert(index=ctk.END, text=f"{url}\n") # Add URL into the Completed tab
+            elif url_status == STATUS['retry']:
+                attempts += 1 # increase the error counterand repeat the same URL
+            elif url_status == STATUS['fail']:
+                attempts = 0 # reset the error counter
+                index += 1 # move to the next URL
+                remove_string(textbox=url_queue_text, text=url) # Remove the URL/line from the queue
+                url_fail_text.insert(index=ctk.END, text=f"{url}\n") # Add URL into the Failed tab
+            announce_message(f"Finished procesing {index} of {total_urls}", MESSAGE_TYPES['info'])
 
     #after processing, return the UI to normal state
     download_button.configure(state=tk.NORMAL, text="Extract files")
@@ -398,7 +413,7 @@ def process_json(data, title, url):
     except Exception as ex:
         sharecount = metaundef
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/shareCount", MESSAGE_TYPES['error'], e=ex)
-    meta_card_file.write('ShareCount:: ' + sharecount + '\n') # only exists in MYO cards3
+    meta_card_file.write('ShareCount:: ' + str(sharecount) + '\n') # only exists in MYO cards3
 
     try:
         availability = data['props']['pageProps']['card']['content'].get('availability', metaundef)
@@ -471,7 +486,15 @@ def process_json(data, title, url):
             #if len(key) > 4:
             key = f"{track_counter:0{pad_length}d}"
             audio_format = track['format']
-            audio_file_name = clean_filename(f"{track_counter:0{pad_length}d} - {track['title']}.{track['format']}")
+            audio_file_name_raw = f"{track_counter:0{pad_length}d} - {track['title']}.{track['format']}"
+            
+            cursed_filename_check = audio_file_name_raw.find('\\n')
+            if cursed_filename_check == -1:
+                announce_message(f"\t\t\t\tThis filename is cursed with newline characters: {audio_file_name_raw}", MESSAGE_TYPES['error'])
+                raise ValueError("File contains newline characters, we can't process that cleanly right now so this playlist cannot be handled.")
+            else:
+                audio_file_name = clean_filename(f"{track_counter:0{pad_length}d} - {track['title']}.{track['format']}")
+            
             announce_message(f"\t\t\t\tSaving to file: {audio_file_name}", MESSAGE_TYPES['info'])
             if audio_url:
                 audio_response = requests.get(audio_url)
