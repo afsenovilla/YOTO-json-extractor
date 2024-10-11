@@ -486,11 +486,9 @@ def process_json(data, title, url):
             #if len(key) > 4:
             key = f"{track_counter:0{pad_length}d}"
             audio_format = track['format']
-            audio_file_name_raw = f"{track_counter:0{pad_length}d} - {track['title']}.{track['format']}"
             
-            cursed_filename_check = audio_file_name_raw.find('\\n')
-            if cursed_filename_check == -1:
-                announce_message(f"\t\t\t\tThis filename is cursed with newline characters: {audio_file_name_raw}", MESSAGE_TYPES['error'])
+            if "\n" in track['title'][:-1]: #newline char at the end will get stripped safely
+                announce_message(f"\t\t\t\tThis filename is cursed with newline characters: {track['title']}", MESSAGE_TYPES['error'])
                 raise ValueError("File contains newline characters, we can't process that cleanly right now so this playlist cannot be handled.")
             else:
                 audio_file_name = clean_filename(f"{track_counter:0{pad_length}d} - {track['title']}.{track['format']}")
