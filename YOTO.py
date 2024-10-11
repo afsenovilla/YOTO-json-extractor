@@ -1,16 +1,14 @@
+import os
+import requests
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
-import requests
 from bs4 import BeautifulSoup
 import json
 import tkinter as tk
 from tkinter import messagebox, filedialog
-import os
 import re
-from mutagen.mp3 import MP3
-from mutagen.id3 import ID3NoHeaderError, ID3, TIT2, TALB, TPE1, TCON, TRCK, APIC
+from mutagen.id3 import ID3, APIC, ID3NoHeaderError, TIT2, TPE1, TALB, TCON, TRCK
 import threading
-import time
 import traceback
 import py7zr
 from datetime import datetime
@@ -61,8 +59,8 @@ def download_and_process_json():
     urls = url_text.get("1.0", tk.END).strip().splitlines()
     
     if not urls:
-        CTkMessagebox(title="Warning", message="Please enter at least one URL.", 
-                      icon="warning", option_1="Ok")
+        CTkMessagebox(title="Warning", message="Please enter at least one URL.",
+                    icon="warning", option_1="Ok")
         return
     
     CTkMessagebox(title="Info", message="A compressed file will be created for each URL, containing folders for audio files and images.")
@@ -174,12 +172,12 @@ def process_json(data, title, url):
     
     try:
         author = data['props']['pageProps']['card']['metadata']['author']
-        if author == "": 
-            author = "MYO" # because 'author' only exsists for official cards
-        announce_message("Metadata parse error: object not found: props/pageProps/card/metadata/author \n\tTitle: " + title + "\n\tURL: " + url)
-    except:
+        if author == "":
+            author = "MYO"  # because 'author' only exists for official cards
+    except KeyError:
         author = metaundef
-    meta_card_file.write('Author:: ' + author + '\n') 
+        announce_message("Metadata parse error: object not found: props/pageProps/card/metadata/author \n\tTitle: " + title + "\n\tURL: " + url)
+    meta_card_file.write('Author:: ' + author + '\n')
     
     try:
         description = data['props']['pageProps']['card']['metadata']['description']
@@ -210,7 +208,7 @@ def process_json(data, title, url):
     
     try:
         languages_array = data['props']['pageProps']['card']['metadata']['languages']
-        languages = languages_array.join(",")
+        languages = ",".join(languages_array)
     except:
         languages = metaundef
         announce_message("Metadata parse error: object not found: props/pageProps/card/metadata/languages \n\tTitle: " + title + "\n\tURL: " + url)
@@ -280,22 +278,22 @@ def process_json(data, title, url):
     sharecount = availability = shareLinkURL = 'tbd'
     meta_card_file.write('Share Statistics\n================\n')
     try:
-        sharecount = str(data['props']['pageProps']['card']['shareCount'])
-    except:
+        sharecount = data['props']['pageProps']['card'].get('shareCount', metaundef)
+    except KeyError:
         sharecount = metaundef
-        announce_message("Metadata parse error: object not found: props/pageProps/card/shareCount \n\tTitle: " + title + "\n\tURL: " + url)
-    meta_card_file.write('ShareCount:: ' + sharecount + '\n') # only exists in MYO cards3
+        announce_message(f"Metadata parse error: object not found: props/pageProps/card/shareCount\n\tTitle: {title}\n\tURL: {url}")
+    meta_card_file.write(f'ShareCount:: {sharecount}\n') # only exists in MYO cards
 
     try:
-        availability = data['props']['pageProps']['card']['availability']
-    except:
+        availability = data['props']['pageProps']['card']['content'].get('availability', metaundef)
+    except KeyError:
         availability = metaundef
-        announce_message("Metadata parse error: object not found: props/pageProps/card/availability \n\tTitle: " + title + "\n\tURL: " + url)
-    meta_card_file.write('Availability:: ' + availability + '\n') # only exists in MYO cards
+        announce_message(f"Metadata parse error: object not found: props/pageProps/card/content/availability\n\tTitle: {title}\n\tURL: {url}")
+    meta_card_file.write(f'Availability:: {availability}\n') # only exists in MYO cards
 
     try:
-        shareLinkURL = data['props']['pageProps']['card']['shareLinkUrl'] 
-    except:
+        shareLinkURL = str(data['props']['pageProps']['card'].get('shareLinkUrl', metaundef))
+    except KeyError:
         shareLinkURL = metaundef
         announce_message("Metadata parse error: object not found: props/pageProps/card/shareLinkUrl \n\tTitle: " + title + "\n\tURL: " + url)
     meta_card_file.write('ShareLinkUrl:: ' + shareLinkURL + '\n') # only exists in MYO cards
@@ -336,13 +334,12 @@ def process_json(data, title, url):
         for track in chapter['tracks']:
             track_counter += 1 # to make sure we can use only one numerical index, this needs to be at the top or bottom of the loop
             
-            # get the audio file
             audio_url = track.get('trackUrl')
-            key = track.get('key', '')
-            if len(key) > 4:
-                key = f"{track_counter:0{pad_length}d}"
-            audio_format = track.get('format', 'aac')
-            audio_file_name = clean_filename(f"{track_counter:0{pad_length}d} - {track['title']}.{audio_format}")
+            #key = track.get('key', '')
+            #if len(key) > 4:
+            key = f"{track_counter:0{pad_length}d}"
+            audio_format = track['format']
+            audio_file_name = clean_filename(f"{track_counter:0{pad_length}d} - {track['title']}.{track['format']}")
             if audio_url:
                 audio_response = requests.get(audio_url)
                 if audio_response.status_code == 200:
@@ -362,11 +359,11 @@ def process_json(data, title, url):
                             print(f"Error loading the audio file: {e}")
             if audio is not None:
                 audio['TIT2'] = TIT2(encoding=3, text=[str(track['title'])])  # Title
-                audio['TPE1'] = TPE1(encoding=3, text=data['props']['pageProps']['card']['metadata']['author'])  # Artist
-                audio['TALB'] = TALB(encoding=3, text=data['props']['pageProps']['card']['title'])  # Album
-                audio['TCON'] = TCON(encoding=3, text=data['props']['pageProps']['card']['metadata']['category'])  # Genre
+                audio['TPE1'] = TPE1(encoding=3, text=[data['props']['pageProps']['card']['metadata']['author']])  # Artist
+                audio['TALB'] = TALB(encoding=3, text=[data['props']['pageProps']['card']['title']])  # Album
+                audio['TCON'] = TCON(encoding=3, text=[data['props']['pageProps']['card']['metadata']['category']])  # Genre
                 audio['TRCK'] = TRCK(encoding=3, text=[str(track['key'])])  # Track number
-                audio['COMM'] = TRCK(encoding=3, text=data['props']['pageProps']['card']['cardId'])  # Comment
+                audio['COMM'] = TRCK(encoding=3, text=[data['props']['pageProps']['card']['cardId']])  # Comment
 
                 if os.path.exists(cover_image_path):
                             with open(cover_image_path, 'rb') as cover_file:
@@ -405,7 +402,8 @@ def process_json(data, title, url):
                         #Note: 'pcm_s16le' is one unsupported format see on the 'Make Your Own Guide' playlist
         else:
                     # BUG: Figure out a way to retry if the file is not fetched
-                print(f"Failed to download track: {audio_response.status_code}")
+                if audio_response.status_code != 200:
+                    print(f"Failed to download track: {audio_response.status_code}")
 
             # get the icon for the track
                 display_info = chapter.get('display')
@@ -439,14 +437,14 @@ def process_json(data, title, url):
                 trackTitle = track['title']
         except:
                 trackTitle = metaundef
-                announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/title \n\tTitle: " + title + "\n\tURL: " + url)
+                announce_message("Metadata parse error: object not found: props/pageProps/card/content/chapters/tracks/title \n\tTitle: " + title + "\n\tURL: " + url)
         meta_tracks_file.write('Title:: ' + trackTitle + '\n')
             
         try:
                 type = track['type']
         except:
                 type = metaundef
-                announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/type \n\tTitle: " + title + "\n\tURL: " + url)
+                announce_message("Metadata parse error: object not found: props/pageProps/card/content/chapters/tracks/type \n\tTitle: " + title + "\n\tURL: " + url)
         meta_tracks_file.write('Type:: ' + type + '\n')
 
         try:
@@ -456,25 +454,25 @@ def process_json(data, title, url):
         except:
                 trackDuration = metaundef
                 trackReadableDuration = metaundef
-                announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/duration \n\tTitle: " + title + "\n\tURL: " + url)
+                announce_message("Metadata parse error: object not found: props/pageProps/card/content/chapters/tracks/duration \n\tTitle: " + title + "\n\tURL: " + url)
         meta_tracks_file.write('Duration:: ' + trackDuration + '\n') 
         meta_tracks_file.write('ReadableDuration:: ' + trackReadableDuration + '\n')
 
         try:
                 trackFileSize = str(track['fileSize'])
                 trackReadableFileSize = convert_bytes(int(trackFileSize))
-        except:
+        except KeyError:
                 trackFileSize = metaundef
                 trackReadableFileSize = metaundef
-        announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/fileSize \n\tTitle: " + title + "\n\tURL: " + url)
+                announce_message("Metadata parse error: object not found: props/pageProps/card/content/chapters/tracks/fileSize \n\tTitle: " + title + "\n\tURL: " + url)
         meta_tracks_file.write('FileSize:: ' + trackFileSize + '\n')
         meta_tracks_file.write('ReadableFileSize:: ' + trackReadableFileSize + '\n')
-                                   
+        
         try:
                 channels = track['channels']
         except:
                 channels = metaundef
-                announce_message("Metadata parse error: object not found: props/pageProps/card/content/cover/chapters/tracks/channels \n\tTitle: " + title + "\n\tURL: " + url)
+                announce_message("Metadata parse error: object not found: props/pageProps/card/content/chapters/tracks/channels \n\tTitle: " + title + "\n\tURL: " + url)
         meta_tracks_file.write('Channels:: ' + channels + '\n')
         meta_tracks_file.write('\n')
     meta_tracks_file.close()
@@ -496,7 +494,7 @@ def process_json(data, title, url):
 root = ctk.CTk()
 root.title("YOTO Json Extractor")
 root.geometry("450x450")
-root.iconbitmap(r"YOTO json extractor\YJE.ico")
+# root.iconbitmap(r"YOTO json extractor\YJE.ico")
 
 save_directory = ''
 
