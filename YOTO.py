@@ -283,19 +283,19 @@ def process_json(data, title, url):
     meta_card_file.write('Title:: ' + title + '\n')
     
     try:
-        author = data['props']['pageProps']['card']['metadata']['author']
+        author = data['props']['pageProps']['card']['metadata'].get('author', metaundef)
         if author == "":
             author = "MYO" # because 'author' only exists for official cards
         announce_message(f"\t\t\tAuthor: {author}", MESSAGE_TYPES['info'])
-    except Exception as ex: #consider changing this to 'except KeyError:' for logging
+    except KeyError as ex:
         author = metaundef
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/author", MESSAGE_TYPES['error'], e=ex)
     meta_card_file.write('Author:: ' + author + '\n') 
     
     try:
-        description = data['props']['pageProps']['card']['metadata']['description']
+        description = data['props']['pageProps']['card']['metadata'].get('description', metaundef)
         announce_message(f"\t\t\tDescription: {description}", MESSAGE_TYPES['info'])
-    except Exception as ex:
+    except KeyError as ex:
         description = metaundef
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/description", MESSAGE_TYPES['error'], e=ex)
     meta_card_file.write('Description:: ' + description + '\n')
@@ -324,10 +324,13 @@ def process_json(data, title, url):
     meta_card_file.write('Category:: ' + category +'\n') # only exsists for official cards
     
     try:
-        languages_list = data['props']['pageProps']['card']['metadata']['languages']
-        languages = ", ".join(languages_list)
+        languages_list = data['props']['pageProps']['card']['metadata'].get('languages', metaundef)
+        if languages is metaundef:
+            assert KeyError("unknown languages list")
+        else:
+            languages = ", ".join(languages_list)
         announce_message(f"\t\t\tLanguages: {languages}", MESSAGE_TYPES['info'])
-    except Exception as ex:
+    except KeyError as ex:
         languages = metaundef
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/languages", MESSAGE_TYPES['error'], e=ex)
     meta_card_file.write('Languages:: '+ languages + '\n') # This is an array, so it needs to be forced into a string.
@@ -485,13 +488,33 @@ def process_json(data, title, url):
             key = track.get('key', '')
             #if len(key) > 4:
             key = f"{track_counter:0{pad_length}d}"
-            audio_format = track['format']
             
-            if "\n" in track['title'][:-1]: #newline char at the end will get stripped safely
-                announce_message(f"\t\t\t\tThis filename is cursed with newline characters: {track['title']}", MESSAGE_TYPES['error'])
+            audio_format = trackTitle = 'tbd'
+            try:
+                # BUG: We need to assume a standard format. Most cards/tracks will have this as a required field but some of the really old stuff seems to be missing this field
+                audio_format = track.get('format', metaundef)
+                if audio_format is metaundef:
+                    audio_format = "aac"
+                    announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/track/format", MESSAGE_TYPES['warning'])
+                    announce_message(f"\t\t\t\tALERT: Audio Format was FORCED to: {audio_format}", MESSAGE_TYPES['info'])
+            except KeyError as ex:
+                audio_format = metaundef
+                announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/track/format", MESSAGE_TYPES['error'], e=ex)
+                announce_message(f"\t\t\tWe were able to catch this error so the card/archive WILL BE BROKEN!!!!!!.", MESSAGE_TYPES['error'], e=ex)   
+            announce_message(f"\t\t\t\tAudio Format: {audio_format}", MESSAGE_TYPES['info'])
+            
+            try:
+                trackTitle = track['title']
+                announce_message(f"\t\t\t\tTrack: {trackTitle}", MESSAGE_TYPES['info'])
+            except KeyError as ex:
+                trackTitle = metaundef
+                announce_message(f"\t\t\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/tracks/title", MESSAGE_TYPES['error'], e=ex)
+            
+            if "\n" in trackTitle[:-1]: #newline char at the end will get stripped safely
+                announce_message(f"\t\t\t\tThis filename is cursed with newline characters: {trackTitle}", MESSAGE_TYPES['error'])
                 raise ValueError("File contains newline characters, we can't process that cleanly right now so this playlist cannot be handled.")
             else:
-                audio_file_name = clean_filename(f"{track_counter:0{pad_length}d} - {track['title']}.{track['format']}")
+                audio_file_name = clean_filename(f"{track_counter:0{pad_length}d} - {trackTitle}.{audio_format}")
             
             announce_message(f"\t\t\t\tSaving to file: {audio_file_name}", MESSAGE_TYPES['info'])
             if audio_url:
@@ -533,17 +556,10 @@ def process_json(data, title, url):
                     announce_message(f"\t\t\t\tNo icon URL found in the 'display' object for this track.", MESSAGE_TYPES['warning'])
             
             # Write the track info to the metadata file
-            trackTitle = type = trackDuration = trackReadableDuration = trackFileSize = trackReadableFileSize = channels = 'tbd'
+            type = trackDuration = trackReadableDuration = trackFileSize = trackReadableFileSize = channels = 'tbd'
             announce_message(f"\t\t\t\t\tWriting Track info into card metadata file.", MESSAGE_TYPES['info'])
             meta_tracks_file.write('TrackNumber:: ' + f"{track_counter:0{pad_length}d}" + '\n')
-                
-            try:
-                trackTitle = track['title']
-                announce_message(f"\t\t\t\t\tTrack: {trackTitle}", MESSAGE_TYPES['info'])
-            except Exception as ex:
-                trackTitle = metaundef
-                announce_message(f"\t\t\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/tracks/title", MESSAGE_TYPES['error'], e=ex)
-            meta_tracks_file.write('Title:: ' + trackTitle + '\n')
+            meta_tracks_file.write('Title:: ' + trackTitle + '\n') # this was already fetched above, so we can just write it out
                 
             try:
                 type = track['type']
@@ -579,9 +595,9 @@ def process_json(data, title, url):
             meta_tracks_file.write('ReadableFileSize:: ' + trackReadableFileSize + '\n')
                                     
             try:
-                channels = track['channels']
+                channels = track.get('channels', metaundef)
                 announce_message(f"\t\t\t\t\tAudio Channels {channels}", MESSAGE_TYPES['info'])
-            except Exception as ex:
+            except KeyError as ex:
                 channels = metaundef
                 announce_message(f"\t\t\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/tracks/channels", MESSAGE_TYPES['error'], e=ex)
             meta_tracks_file.write('Channels:: ' + channels + '\n')
