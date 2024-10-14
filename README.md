@@ -1,8 +1,8 @@
-# 🎵🎶 **YOTO JSON Extractor** 🎶🎵
+# 🎵🎶 **Yoto JSON Extractor** 🎶🎵
 
 ![Code Size](https://img.shields.io/github/languages/code-size/afsenovilla/YOTO-json-extractor) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)
 
-**YOTO JSON Extractor** is a Python-based tool that helps you download and process JSON data from Yoto URLs. It extracts and compress audio files and images, and embeds metadata into audio files for easier management of Yoto card content.
+**Yoto JSON Extractor** is a Python-based tool that helps you download and process JSON data from Yoto URLs. It extracts and compress audio files and images, and embeds metadata into audio files for easier management of Yoto card content.
 
 ---
 
