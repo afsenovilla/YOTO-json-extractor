@@ -48,6 +48,8 @@ def announce_message(message, type=MESSAGE_TYPES['info'], e=None):
         trace = traceback.print_exc()
         if trace is not None: #print the stacktrace if it exists
             log_text.insert(index=ctk.END, text=f"Trace: {trace}\n")
+    if not log_text.tag_ranges(tk.SEL): # check if the textbox is not selected
+        log_text.yview_moveto(1.0) # scroll to the bottom
 
     if not silent_mode: #if user wants alerts, pop the message in a box for them
         #BUG: this doesn't pop the message boxes. I don't know why. All the messages coming into this function are logged into the Log textbox though, so that's good. but when silent_mode is false, every message coming in here should trigger a popup
@@ -618,22 +620,28 @@ def process_json(data, title, url):
 
             try:
                 #Podcasts like don't always have this data available
-                trackDuration = str(track.get('duration', metaundef))
-                if trackDuration is not metaundef: trackReadableDuration = convert_seconds(int(trackDuration))
+                trackDuration = track.get('duration', metaundef)
+                if trackDuration is None: trackDuration = metaundef # sometimes the duration will be 'null', e.g. some podcasts
+                if trackDuration is not metaundef: 
+                    trackDuration = str(trackDuration)
+                    trackReadableDuration = convert_seconds(int(trackDuration))
+                    meta_tracks_file.write('Duration:: ' + trackDuration + '\n')
+                if trackReadableDuration is not metaundef: meta_tracks_file.write('ReadableDuration:: ' + trackReadableDuration + '\n')
                 announce_message(f"\t\t\t\t\tDuration (Seconds): {trackDuration}", MESSAGE_TYPES['info'])
                 announce_message(f"\t\t\t\t\tHuman Readable Duration: {trackReadableDuration}", MESSAGE_TYPES['info'])
-                if trackDuration is not metaundef: meta_tracks_file.write('Duration:: ' + trackDuration + '\n') 
-                if trackReadableDuration is not metaundef: meta_tracks_file.write('ReadableDuration:: ' + trackReadableDuration + '\n')
             except Exception as ex:
                 announce_message(f"\t\t\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/tracks/duration", MESSAGE_TYPES['error'], e=ex)
 
             try:
-                trackFileSize = str(track.get('fileSize', metaundef))
-                announce_message(f"\t\t\t\t\tFile Size (bytes): {trackFileSize}", MESSAGE_TYPES['info'])
-                if trackFileSize is not metaundef: trackReadableFileSize = convert_bytes(int(trackFileSize))
-                announce_message(f"\t\t\t\t\tHuman Readable File Size: {trackReadableFileSize}", MESSAGE_TYPES['info'])
-                if trackFileSize is not metaundef: meta_tracks_file.write('FileSize:: ' + trackFileSize + '\n')
+                trackFileSize = track.get('fileSize', metaundef)
+                if trackFileSize is None: trackFileSize = metaundef # sometimes the fileSize will be 'null', e.g. some podcasts
+                if trackFileSize is not metaundef: 
+                    trackFileSize = str(trackFileSize)
+                    trackReadableFileSize = convert_bytes(int(trackFileSize))
+                    meta_tracks_file.write('FileSize:: ' + trackFileSize + '\n')
                 if trackReadableFileSize is not metaundef: meta_tracks_file.write('ReadableFileSize:: ' + trackReadableFileSize + '\n')
+                announce_message(f"\t\t\t\t\tFile Size (bytes): {trackFileSize}", MESSAGE_TYPES['info'])
+                announce_message(f"\t\t\t\t\tHuman Readable File Size: {trackReadableFileSize}", MESSAGE_TYPES['info'])
             except KeyError as ex:
                 announce_message(f"\t\t\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/tracks/fileSize", MESSAGE_TYPES['error'], e=ex)
                                     
@@ -702,24 +710,24 @@ label = ctk.CTkLabel(root, text="Enter URLs into the Queue (one per line):")
 label.pack(pady=2)
 
 tabview = ctk.CTkTabview(root) # Build a set of tabs for the URLs to sit in
-tabview.pack(pady=5)
+tabview.pack(pady=5, expand=True, fill='both')
 # TODO: make the textbox resizable when the window is resized
 
 tabview.add("Queue") # Intake - list of URLS to process
 url_queue_text = ctk.CTkTextbox(master=tabview.tab("Queue"), width=380, height=200, corner_radius=10, border_color="#3a7ebf", border_width=2, fg_color="#FAF9F6", text_color="black", scrollbar_button_color="#D3D3D3", wrap=tk.WORD)
-url_queue_text.pack()
+url_queue_text.pack(expand=True, fill='both')
 
 tabview.add("Completed") # Output successful URLS over to here
 url_success_text = ctk.CTkTextbox(master=tabview.tab("Completed"), width=380, height=200, corner_radius=10, border_color="#3a7ebf", border_width=2, fg_color="#FAF9F6", text_color="black", scrollbar_button_color="#D3D3D3", wrap=tk.WORD)
-url_success_text.pack()
+url_success_text.pack(expand=True, fill='both')
 
 tabview.add("Failed") # Output failed URLs over to here
 url_fail_text = ctk.CTkTextbox(master=tabview.tab("Failed"), width=380, height=200, corner_radius=10, border_color="#3a7ebf", border_width=2, fg_color="#FAF9F6", text_color="black", scrollbar_button_color="#D3D3D3", wrap=tk.WORD)
-url_fail_text.pack()
+url_fail_text.pack(expand=True, fill='both')
 
 tabview.add("Log") # another tab to show the output/erros
 log_text = ctk.CTkTextbox(tabview.tab("Log"), width=380, height=200, corner_radius=10, border_color="#3a7ebf", border_width=2, fg_color="#FAF9F6", text_color="black", scrollbar_button_color="#D3D3D3", wrap=tk.WORD)
-log_text.pack()
+log_text.pack(expand=True, fill='both')
 
 progress_bar = ctk.CTkProgressBar(root, width=300)
 progress_bar.set(0)
