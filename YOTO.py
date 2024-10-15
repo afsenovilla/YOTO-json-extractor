@@ -431,21 +431,28 @@ def process_json(data, title, url):
 
     try:
         duration = data['props']['pageProps']['card']['metadata']['media'].get('duration', metaundef)
-        announce_message(f"\t\t\tDuration (seconds): {duration}", MESSAGE_TYPES['info'])
-        readableDuration = convert_seconds(int(duration))        
+        if duration is None: duration = metaundef # some podcasts set this to null
+        if duration is not metaundef: 
+            duration = str(duration)
+            meta_card_file.write('Duration:: ' + str(duration) + '\n')
+            readableDuration = str(convert_seconds(int(duration)))
+            if readableDuration is not metaundef: meta_card_file.write('ReadableDuration:: ' + readableDuration + '\n') # not always available, so let's just calculate it to be easier
         announce_message(f"\t\t\tHuman Readable Duration: {readableDuration}", MESSAGE_TYPES['info'])
-        if duration is not metaundef: meta_card_file.write('Duration:: ' + str(duration) + '\n')
-        if readableDuration is not metaundef: meta_card_file.write('ReadableDuration:: ' + readableDuration + '\n') # not always available, so let's just calculate it to be easier
+        announce_message(f"\t\t\tDuration (seconds): {duration}", MESSAGE_TYPES['info'])
     except KeyError as ex:
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/media/duration", MESSAGE_TYPES['error'], e=ex)    
 
     try:
         fileSize = data['props']['pageProps']['card']['metadata']['media'].get('fileSize', metaundef)
-        if fileSize is not metaundef: readableFileSize = convert_bytes(int(fileSize))
+        if fileSize is None: fileSize = metaundef # some podcasts set this to null
+        if fileSize is not metaundef: 
+            fileSize = str(fileSize)
+            meta_card_file.write('FileSize:: ' + str(fileSize) + '\n')
+            readableFileSize = convert_bytes(int(fileSize))
+            if readableFileSize is not metaundef: meta_card_file.write('ReadableFileSize:: ' + readableFileSize + '\n') # not always available, so let's just calculate it to be easier
         announce_message(f"\t\t\tfileSize (bytes): {fileSize}", MESSAGE_TYPES['info'])
         announce_message(f"\t\t\tHuman Readable File Size: {readableFileSize}", MESSAGE_TYPES['info'])
-        if fileSize is not metaundef: meta_card_file.write('FileSize:: ' + str(fileSize) + '\n')
-        if readableFileSize is not metaundef: meta_card_file.write('ReadableFileSize:: ' + readableFileSize + '\n') # not always available, so let's just calculate it to be easier
+        
     except KeyError as ex:
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/media/fileSize", MESSAGE_TYPES['error'], e=ex)
     meta_card_file.write('\n')
