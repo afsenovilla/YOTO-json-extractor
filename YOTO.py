@@ -86,6 +86,7 @@ def clean_filename(filename):
 
 
 def choose_directory():
+    global save_directory
     folder_selected = tk.filedialog.askdirectory()
     if folder_selected:
         save_directory = folder_selected
@@ -96,11 +97,11 @@ def choose_directory():
 def download_and_process_json():
     announce_message(f"URL processing initiated.", MESSAGE_TYPES['info'])
     urls = url_queue_text.get("1.0", tk.END).strip().splitlines()
-    
+
     if not urls:
         announce_message(f"Please enter at least one URL.", MESSAGE_TYPES['warning'])
         return
-    
+
     announce_message(f"A compressed file will be created for each URL, containing folders for audio files and images.", MESSAGE_TYPES['info'])
 
     progress_bar.pack(pady=10)
@@ -124,13 +125,13 @@ def remove_string(textbox, text):
 
 def stop_threads(): # currently this doesn't work so i've just disabled/removed the stop button
     announce_message(f"Stoping all threads...", MESSAGE_TYPES['warning'])
-    threads_can_run = False     
+    threads_can_run = False
     all_threads = threading.active_children()
-     
+
     for thread in all_threads:
         announce_message(f"Thread {thread.name} has been killed.", MESSAGE_TYPES['warning'])
         thread.terminate()
-        
+
     announce_message(f"All threads stopped.", MESSAGE_TYPES['warning'])
     threasd_can_run = True
     download_button.configure(state=tk.NORMAL, text="Extract Files")
@@ -161,9 +162,9 @@ def getExtensionFromContentType(contentType=None):
             return "flac"
         case "audio/x-m4a":
             return "m4a"
-    
+
     # if unmatched or not provided, send back a exception
-    raise ValueError("Error: contentType provided is unknown to the codebase.")    
+    raise ValueError("Error: contentType provided is unknown to the codebase.")
     return None # this line is unreachable
 
 def isUnique(list, query):
@@ -173,7 +174,7 @@ def isUnique(list, query):
     for element in list:
         if query == element:
             return False
-    
+
     return True
 
 def dump_text_to_file(textbox, logtype, folder):
@@ -189,8 +190,7 @@ def dump_text_to_file(textbox, logtype, folder):
             announce_message(f"Error writing {logtype} to file: {log_file_path}", MESSAGE_TYPES['error'], ex)
 
 def save_logs():
-    folder = save_directory 
-    # BUG: When the folder is changed, it doesn't change where the logs file are written. I'm not sure why
+    folder = save_directory
     dump_text_to_file(log_text, "Logs", folder)
     dump_text_to_file(url_success_text, "Completed-URLs", folder)
     dump_text_to_file(url_fail_text, "Failed-URLs", folder)
@@ -205,6 +205,7 @@ def fetchURL_threading(url):
     else:
         return thread.result
 
+
 def process_urls(urls):
     total_urls = len(urls)
     completed_urls = 0
@@ -212,105 +213,102 @@ def process_urls(urls):
     attempts = 0
     announce_message(f"Found {total_urls} URLs.", MESSAGE_TYPES['info'])
 
-    while (index < len(urls)) & threads_can_run:
-        announce_message(f"Now procesing {index} of {total_urls}", MESSAGE_TYPES['info'])
+    while index < len(urls) and threads_can_run:
+        announce_message(f"Now procesing {index + 1} of {total_urls}", MESSAGE_TYPES['info'])
         attempts += 1 # keep track of how many times a URL has been tried, skip it if we have tried it too many times.
         url = urls[index] #BUG: this line keeps throwing out of bounds exceptions
         url_status = STATUS['ok']
+
         try:
-            if url: 
-                announce_message(f"\tAttempt {attempts} for {url}", MESSAGE_TYPES['info'])
-                if attempts < 10:
-                    url = ensure_https(url)
-                    try:
-                        response = fetchURL_threading(url)
-                        if response.status_code == 200:
-                            soup = BeautifulSoup(response.text, 'html.parser')
-                            script_tag = soup.find('script', id='__NEXT_DATA__', type='application/json')
-                            if script_tag is None:
-                                announce_message(f"\tNo script found with ID '__NEXT_DATA__'.", MESSAGE_TYPES['error'])
-                                url_status = STATUS['fail']
-                                raise ValueError("Script tag is blank.")
-                            else:
-                                json_data = json.loads(script_tag.string)
-                                try:
-                                    card = json_data['props']['pageProps']['card']
-                                    announce_message(f"\tCard object found.", MESSAGE_TYPES['info'])
-                                    try:
-                                        title_tag = card['title']
-                                        title = clean_filename(title_tag)
-                                        announce_message(f"\tTitle: {title}", MESSAGE_TYPES['info'])
-                                        json_file_name = f"{title}.json"
-                                        
-                                        try:
-                                            with open(json_file_name, 'w') as json_file:
-                                                json.dump(json_data, json_file, indent=4)
-                                                announce_message(f"\tJSON data temporarily stored in {json_file_name}", MESSAGE_TYPES['info'])
-                                        except Exception as ex:
-                                                announce_message(f"\tError storing JSON data in temp file: {json_file_name}", MESSAGE_TYPES['error'], ex)
-                                                url_status = STATUS['retry']
-                                            
-                                        try:
-                                            process_json(json_data, title, url) #passing the URL only so it can get logged in the library
-                                            os.remove(json_file_name)
-                                            announce_message(f"\tTemporary JSON file deleted.", MESSAGE_TYPES['info'])
-                                            url_status = STATUS['ok']
-                                        except ValueError as ve:
-                                            announce_message(f"\tCritical error with the download process.", MESSAGE_TYPES['error'], ve)
-                                            url_status = STATUS['fail'] # we should only throw this kind of error if the URL needs to be skipped
-                                        except TimeoutError as te:
-                                            announce_message(f"\tCritical error with the download process.", MESSAGE_TYPES['error'], ve)
-                                            url_status = STATUS['fail'] # This will occur if the download crosses the time limit
-                                        except Exception as e: #generic exception in case something went wrong we don't know about
-                                            announce_message(f"\tAn uncaught error occured parsing a playlist.", MESSAGE_TYPES['error'], e)
-                                            url_status = STATUS['retry'] # don't progress the index if there was an error, just retry it
-                                    except Exception as ex:
-                                        announce_message(f"\tNo 'title' meta tag found in JSON blob.", MESSAGE_TYPES['error'])
-                                        url_status = STATUS['fail']
-                                        #raise ValueError("Title not found.")
-                                except Exception as ex:
-                                    announce_message(f"\tNo 'card' object found in JSON blob.", MESSAGE_TYPES['error'])
-                                    url_status = STATUS['fail']
-                                    #raise ValueError("Card is blank.")                             
-                        else:
-                            announce_message(f"\tFailed to access the URL: {response.status_code}", MESSAGE_TYPES['error'])
-                            url_status = STATUS['fail']
-                    except Exception as e:
-                        announce_message(f"\tAn uncaught error occured.", MESSAGE_TYPES['error'], e)
-                        url_status = STATUS['fail']
-                else:
-                    announce_message(f"\tURL has been tried 10 times and not able to complete.", MESSAGE_TYPES['error'])
-                    url_status = STATUS['fail']
-            else:
-                announce_message(f"An error occured. Unable to process this URL:\n\tURL: {url}", MESSAGE_TYPES['error'])
-                url_status = STATUS['fail']
+            if not url:
+                raise ValueError("url is blank")
+
+            url_status = handle_url(url, attempts)
         except Exception as ex:
-            announce_message(f"An error occured. Unable to process this data on this page:\n\tURL: {url}", MESSAGE_TYPES['error'], ex)
+            announce_message(f"An error occurred processing this URL: {url}", MESSAGE_TYPES['error'], ex)
             url_status = STATUS['fail']
-        finally:                
-            if url_status == STATUS['ok']:
-                attempts = 0 # reset the error counter
-                index += 1 # move to the next URL
-                completed_urls += 1 # count the success
-                # update the UI
-                progress_bar.set(completed_urls / total_urls) 
-                download_button.configure(text=f"Processing... {total_urls - completed_urls} URLs left")
-                remove_string(textbox=url_queue_text, text=url) # Remove the URL/line from the queue
-                url_success_text.insert(index=ctk.END, text=f"{url}\n") # Add URL into the Completed tab
-            elif url_status == STATUS['retry']:
-                attempts += 1 # increase the error counterand repeat the same URL
-            elif url_status == STATUS['fail']:
-                attempts = 0 # reset the error counter
-                index += 1 # move to the next URL
-                remove_string(textbox=url_queue_text, text=url) # Remove the URL/line from the queue
-                url_fail_text.insert(index=ctk.END, text=f"{url}\n") # Add URL into the Failed tab
-            announce_message(f"Finished procesing {index} of {total_urls}", MESSAGE_TYPES['info'])
+
+        index, completed_urls, attempts = update_progress(url, url_status, index, completed_urls, attempts, total_urls)
+        announce_message(f"Finished procesing {index + 1} of {total_urls}", MESSAGE_TYPES['info'])
 
     #after processing, return the UI to normal state
     download_button.configure(state=tk.NORMAL, text="Extract files")
     progress_bar.pack_forget()
     announce_message(f"All downloads and processing completed successfully.", MESSAGE_TYPES['info'])
     save_logs()
+
+
+def handle_url(url, attempts):
+    if attempts >= 10:
+        announce_message(f"\tURL has been tried 10 times and not able to complete.", MESSAGE_TYPES['error'])
+        return STATUS['fail']
+
+    announce_message(f"\tAttempt {attempts} for {url}", MESSAGE_TYPES['info'])
+    url = ensure_https(url)
+
+    response = fetchURL_threading(url)
+    if response.status_code != 200:
+        announce_message(f"\tFailed to access the URL: {response.status_code}", MESSAGE_TYPES['error'])
+        return STATUS['fail']
+
+    return process_response(response, url)
+
+
+def process_response(response, url):
+    soup = BeautifulSoup(response.text, 'html.parser')
+    script_tag = soup.find('script', id='__NEXT_DATA__', type='application/json')
+    if not script_tag:
+        announce_message(f"\tNo script found with ID '__NEXT_DATA__'.", MESSAGE_TYPES['error'])
+        return STATUS['fail']
+
+    json_data = json.loads(script_tag.string)
+    return handle_json_data(json_data, url)
+
+
+def handle_json_data(json_data, url):
+    try:
+        card = json_data['props']['pageProps']['card']
+        announce_message(f"\tCard object found.", MESSAGE_TYPES['info'])
+        title = clean_filename(card.get('title','Untitled'))
+        announce_message(f"\tTitle: {title}", MESSAGE_TYPES['info'])
+        json_file_name = f"{title}.json"
+
+        process_json(json_data, title, url) #passing the URL only so it can get logged in the library
+
+        return STATUS['ok']
+
+    except (ValueError, TimeoutError) as ex:
+        announce_message(f"\tCritical error with the download process.", MESSAGE_TYPES['error'], ex)
+        return STATUS['fail']
+
+    except AttributeError as ex:
+        announce_message(f"\tNo 'card' object found in JSON blob.", MESSAGE_TYPES['error'])
+        return STATUS['fail']
+
+    except Exception as ex:
+        announce_message(f"\tError processing JSON data for {title}", MESSAGE_TYPES['error'], ex)
+        with open(json_file_name, 'w') as json_file:
+            json.dump(json_data, json_file, indent=4)
+            announce_message(f"\tJSON data stored in {json_file_name}", MESSAGE_TYPES['info'])
+        return STATUS['retry']
+
+
+def update_progress(url, url_status, index, completed_urls, attempts, total_urls):
+    if url_status == STATUS['retry']:
+        attempts += 1 # increase the error counter and repeat the same URL
+    else:
+        attempts = 0 # reset the error counter
+        index += 1 # move to the next URL
+        completed_urls += 1 # count the processed
+        remove_string(textbox=url_queue_text, text=url) # Remove the URL/line from the queue
+        download_button.configure(text=f"Processing... {total_urls - completed_urls} URLs left")
+        if url_status == STATUS['ok']:
+            url_success_text.insert(index=ctk.END, text=f"{url}\n") # Add URL into the Completed tab
+        else:
+            url_fail_text.insert(index=ctk.END, text=f"{url}\n") # Add URL into the Failed tab
+
+    return index, completed_urls, attempts
+
 
 def process_json(data, title, url):
     announce_message(f"\tNew URL started...", MESSAGE_TYPES['info'])
@@ -333,11 +331,11 @@ def process_json(data, title, url):
 
     meta_card_file = open(os.path.join(downloads_dir,  'card.txt'), 'w', encoding="utf-8") # file for metadata about the card
     announce_message(f"\t\t\tCreated card metadata file: {meta_card_file}", MESSAGE_TYPES['info'])
-    
+
     meta_tracks_file = open(os.path.join(downloads_dir,  'tracks.txt'), 'w', encoding="utf-8") # file for metadata about the tracks on the card
     announce_message(f"\t\t\tCreating tracks metadata file: {meta_tracks_file}", MESSAGE_TYPES['info'])
     meta_tracks_file.write('Track Details\n================\n') # write the file header here. in a previous version this was appended after the card details in a single file
-    
+
     meta_library_path = os.path.join(save_directory,  'YJE-library.csv') # library file to drop info about all the cards we've explored
     meta_library_file = "x"
     if(os.path.exists(meta_library_path)): #if file exists, just append to it, starting with a new line (to ensure we are writing on a fresh line)
@@ -347,7 +345,7 @@ def process_json(data, title, url):
     else: # if file doesn't exist, give it a header line
         meta_library_file = open(meta_library_path, 'w', encoding="utf-8")
         announce_message(f"\t\t\tLibrary file not already found, creating a new one: {meta_tracks_file}", MESSAGE_TYPES['info'])
-        meta_library_file.write('cardId;title;author;version;languages;slug;category;duration;readableDuration;fileSize;readableFileSize;tracks;createdAt;updatedAt;url;shareCount;availability;sharelinkURL;audio_formats\n') 
+        meta_library_file.write('cardId;title;author;version;languages;slug;category;duration;readableDuration;fileSize;readableFileSize;tracks;createdAt;updatedAt;url;shareCount;availability;sharelinkURL;audio_formats\n')
     announce_message(f"\t\tWorkspace setup complete.", MESSAGE_TYPES['info'])
 
     ### get the card info and dump it to a file
@@ -363,16 +361,16 @@ def process_json(data, title, url):
         if title is not metaundef: meta_card_file.write('Title:: ' + title + '\n')
     except KeyError as ex:
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/title", MESSAGE_TYPES['error'], e=ex)
-    
+
     try:
         author = data['props']['pageProps']['card']['metadata'].get('author', metaundef)
         if author == "":
             author = "MYO" # because 'author' only exists for official cards
         announce_message(f"\t\t\tAuthor: {author}", MESSAGE_TYPES['info'])
-        if author is not metaundef: meta_card_file.write('Author:: ' + author + '\n') 
+        if author is not metaundef: meta_card_file.write('Author:: ' + author + '\n')
     except KeyError as ex:
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/author", MESSAGE_TYPES['error'], e=ex)
-    
+
     try:
         description = data['props']['pageProps']['card']['metadata'].get('description', metaundef)
         announce_message(f"\t\t\tDescription: {description}", MESSAGE_TYPES['info'])
@@ -442,7 +440,7 @@ def process_json(data, title, url):
         slug = data['props']['pageProps']['card'].get('slug', metaundef)
         announce_message(f"\t\t\tStore Slug: {slug}", MESSAGE_TYPES['info'])
         if slug is not metaundef: meta_card_file.write('slug:: '+ slug + '\n') # only exsists for official cards
-    except KeyError as ex: 
+    except KeyError as ex:
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/slug", MESSAGE_TYPES['error'], e=ex)
 
     try:
@@ -455,7 +453,7 @@ def process_json(data, title, url):
     try:
         duration = data['props']['pageProps']['card']['metadata']['media'].get('duration', metaundef)
         if duration is None: duration = metaundef # some podcasts set this to null
-        if duration is not metaundef: 
+        if duration is not metaundef:
             duration = str(duration)
             meta_card_file.write('Duration:: ' + str(duration) + '\n')
             readableDuration = str(convert_seconds(int(duration)))
@@ -463,19 +461,19 @@ def process_json(data, title, url):
         announce_message(f"\t\t\tHuman Readable Duration: {readableDuration}", MESSAGE_TYPES['info'])
         announce_message(f"\t\t\tDuration (seconds): {duration}", MESSAGE_TYPES['info'])
     except KeyError as ex:
-        announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/media/duration", MESSAGE_TYPES['error'], e=ex)    
+        announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/media/duration", MESSAGE_TYPES['error'], e=ex)
 
     try:
         fileSize = data['props']['pageProps']['card']['metadata']['media'].get('fileSize', metaundef)
         if fileSize is None: fileSize = metaundef # some podcasts set this to null
-        if fileSize is not metaundef: 
+        if fileSize is not metaundef:
             fileSize = str(fileSize)
             meta_card_file.write('FileSize:: ' + str(fileSize) + '\n')
             readableFileSize = convert_bytes(int(fileSize))
             if readableFileSize is not metaundef: meta_card_file.write('ReadableFileSize:: ' + readableFileSize + '\n') # not always available, so let's just calculate it to be easier
         announce_message(f"\t\t\tfileSize (bytes): {fileSize}", MESSAGE_TYPES['info'])
         announce_message(f"\t\t\tHuman Readable File Size: {readableFileSize}", MESSAGE_TYPES['info'])
-        
+
     except KeyError as ex:
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/media/fileSize", MESSAGE_TYPES['error'], e=ex)
     meta_card_file.write('\n')
@@ -526,18 +524,18 @@ def process_json(data, title, url):
         cover_image_url = metaundef
         announce_message(f"\t\t\tMetadata parse error: object not found: props/pageProps/card/metadata/cover/imageL", MESSAGE_TYPES['error'], e=ex)
     announce_message(f"\t\tArtwork complete.", MESSAGE_TYPES['info'])
-    
+
     announce_message(f"\t\tCounting number of tracks.", MESSAGE_TYPES['info'])
     track_counter = 0
     chapters = data['props']['pageProps']['card']['content']['chapters']
-    
+
     # figure out padding length then reset the track counter
     pad_length = 0
     for chapter in chapters:
         for track in chapter['tracks']:
             track_counter +=1 # count up the number of tracks so we know how long to pad the index
     announce_message(f"\t\t\tFound {track_counter} tracks.", MESSAGE_TYPES['info'])
-    
+
     while track_counter != 0:
         track_counter //= 10
         pad_length += 1
@@ -554,14 +552,14 @@ def process_json(data, title, url):
         for track in chapter['tracks']:
             announce_message(f"\t\t\t\tNew track found", MESSAGE_TYPES['info'])
             track_counter += 1 # to make sure we can use only one numerical index, this needs to be at the top or bottom of the loop
-            
+
             # get the audio file
             audio_url = track.get('trackUrl')
             announce_message(f"\t\t\t\t\tAudio source: {audio_url}", MESSAGE_TYPES['info'])
             key = track.get('key', '')
             #if len(key) > 4:
             key = f"{track_counter:0{pad_length}d}"
-            
+
             audio_format = trackTitle = audio_file_ext = audio_content_type = 'tbd'
             if audio_url:
                 audio_response = fetchURL_threading(audio_url)
@@ -570,7 +568,7 @@ def process_json(data, title, url):
                     try:
                         audio_content_type = audio_response.headers['content-type']
                         audio_file_ext = getExtensionFromContentType(audio_content_type) #this can throw a ValueError that we don't want to catch
-                        
+
                         if isUnique(audio_formats, audio_file_ext):
                             audio_formats.append(audio_file_ext) # add the format to the list if it is unique so we can report it to the library.csv file
                     except ValueError as ex:
@@ -579,27 +577,27 @@ def process_json(data, title, url):
 
                     try:
                         audio_format = track.get('format', metaundef)
-                        if audio_format is metaundef:                    
+                        if audio_format is metaundef:
                             raise KeyError
                     except KeyError as ex:
                         audio_format = metaundef
                         announce_message(f"\t\t\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/track/format", MESSAGE_TYPES['error'], e=ex)
-                        announce_message(f"\t\t\t\t\tWe were able to catch this error so the card/archive WILL BE BROKEN!!!!!!.", MESSAGE_TYPES['error'], e=ex)   
+                        announce_message(f"\t\t\t\t\tWe were able to catch this error so the card/archive WILL BE BROKEN!!!!!!.", MESSAGE_TYPES['error'], e=ex)
                     announce_message(f"\t\t\t\t\tAudio Format: {audio_format}", MESSAGE_TYPES['info'])
-                    
+
                     try:
                         trackTitle = track['title']
                         announce_message(f"\t\t\t\t\tTrack: {trackTitle}", MESSAGE_TYPES['info'])
                     except KeyError as ex:
                         trackTitle = metaundef
                         announce_message(f"\t\t\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/tracks/title", MESSAGE_TYPES['error'], e=ex)
-                    
+
                     if "\n" in trackTitle[:-1]: #newline char at the end will get stripped safely
                         announce_message(f"\t\t\t\t\tThis filename is cursed with newline characters: {trackTitle}", MESSAGE_TYPES['error'])
                         raise ValueError("File contains newline characters, we can't process that cleanly right now so this playlist cannot be handled.")
                     else:
                         audio_file_name = clean_filename(f"{track_counter:0{pad_length}d} - {trackTitle}.{audio_file_ext}")
-                    
+
                     announce_message(f"\t\t\t\t\tSaving to file: {audio_file_name}", MESSAGE_TYPES['info'])
                     audio_file_path = os.path.join(audio_dir, audio_file_name)
                     with open(audio_file_path, 'wb') as audio_file:
@@ -610,7 +608,7 @@ def process_json(data, title, url):
                 else:
                     # BUG: Figure out a way to retry if the file is not fetched
                     announce_message(f"\t\t\t\t\tFailed to download track. Response code {audio_response.status_code}", MESSAGE_TYPES['error'])
-            
+
             announce_message(f"\t\t\t\t\tLooking for icon file.", MESSAGE_TYPES['info'])
             # icons can be set for chapters and also tracks. In a browser, the chapter icon will override and be displayed. On a player or the yoto app, the Track icon will be displayed instead. for archival, we want to grab the track icon and then fallback on the chapter icon if needed.
             chapter_display_info = chapter.get('display') # get the icon for the chapter
@@ -623,14 +621,14 @@ def process_json(data, title, url):
                     icon_url = chapter_display_info.get('icon16x16')
                     announce_message(f"\t\t\t\t\tFound Icon (16x16_Chapter): {icon_url}", MESSAGE_TYPES['info'])
                 # Note: If Yoto ever releases a new device with a larger screen, or decides to support larger format icons, this will break immediately. The 'display' json object is prepared to suport other files as well, perhaps we should reformat this to just fetch everything and dump them into different folders based on the identifier (e.g. 'icon16x16/filename.ext, icon32x32/filename.ext')
-                
+
                 if len(key) > 4:
                     # Use the track number as the index, there may not be icons for every track but we want to keep the icon aligned with the track regardless
                     icon_file_name = clean_filename(f"{track_counter:0{pad_length}d}.png")
                     # TODO: is the file format being forced here? check that this is correct, and save the right file format
                 else:
                     icon_file_name = clean_filename(f"{key}.png")
-                
+
                 if icon_url:
                     icon_response = fetchURL_threading(icon_url)
                     if icon_response.status_code == 200:
@@ -639,7 +637,7 @@ def process_json(data, title, url):
                             announce_message(f"\t\t\t\t\tIcon download complete: {icon_file}", MESSAGE_TYPES['info'])
                     else:
                         #BUG: figure out a way to retry just this icon if the download fails
-                        announce_message(f"\t\t\t\t\tIcon file download failed: {icon_response.status_code}", MESSAGE_TYPES['error'])                        
+                        announce_message(f"\t\t\t\t\tIcon file download failed: {icon_response.status_code}", MESSAGE_TYPES['error'])
                 else:
                     announce_message(f"\t\t\t\t\tNo icon URL found in the 'display' object for this track.", MESSAGE_TYPES['warning'])
             announce_message(f"\t\t\t\t\tIcon fetching complete.", MESSAGE_TYPES['info'])
@@ -649,7 +647,7 @@ def process_json(data, title, url):
             announce_message(f"\t\t\t\t\tWriting Track info into card metadata file.", MESSAGE_TYPES['info'])
             meta_tracks_file.write('TrackNumber:: ' + f"{track_counter:0{pad_length}d}" + '\n')
             meta_tracks_file.write('Title:: ' + trackTitle + '\n') # this was already fetched above, so we can just write it out
-                
+
             try:
                 type = track.get('type', metaundef)
                 announce_message(f"\t\t\t\t\tType: {type}", MESSAGE_TYPES['info'])
@@ -661,7 +659,7 @@ def process_json(data, title, url):
                 #Podcasts like don't always have this data available
                 trackDuration = track.get('duration', metaundef)
                 if trackDuration is None: trackDuration = metaundef # sometimes the duration will be 'null', e.g. some podcasts
-                if trackDuration is not metaundef: 
+                if trackDuration is not metaundef:
                     trackDuration = str(trackDuration)
                     trackReadableDuration = convert_seconds(int(trackDuration))
                     meta_tracks_file.write('Duration:: ' + trackDuration + '\n')
@@ -674,7 +672,7 @@ def process_json(data, title, url):
             try:
                 trackFileSize = track.get('fileSize', metaundef)
                 if trackFileSize is None: trackFileSize = metaundef # sometimes the fileSize will be 'null', e.g. some podcasts
-                if trackFileSize is not metaundef: 
+                if trackFileSize is not metaundef:
                     trackFileSize = str(trackFileSize)
                     trackReadableFileSize = convert_bytes(int(trackFileSize))
                     meta_tracks_file.write('FileSize:: ' + trackFileSize + '\n')
@@ -683,7 +681,7 @@ def process_json(data, title, url):
                 announce_message(f"\t\t\t\t\tHuman Readable File Size: {trackReadableFileSize}", MESSAGE_TYPES['info'])
             except KeyError as ex:
                 announce_message(f"\t\t\t\t\tMetadata parse error: object not found: props/pageProps/card/content/chapters/tracks/fileSize", MESSAGE_TYPES['error'], e=ex)
-                                    
+
             try:
                 channels = track.get('channels', metaundef)
                 announce_message(f"\t\t\t\t\tAudio Channels {channels}", MESSAGE_TYPES['info'])
@@ -698,7 +696,7 @@ def process_json(data, title, url):
     meta_tracks_file.close()
 
     announce_message(f"\t\tWriting metadata to the Library file.", MESSAGE_TYPES['info'])
-    meta_library_file.write(f"{cardID};{title};{author};{version};{languages};{slug};{category};{str(duration)};{readableDuration};{str(fileSize)};{readableFileSize};{str(track_counter)};{createdAt};{updatedAt};{url};{sharecount};{availability};{shareLinkURL};{",".join(audio_formats)};\n")    
+    meta_library_file.write(f"{cardID};{title};{author};{version};{languages};{slug};{category};{str(duration)};{readableDuration};{str(fileSize)};{readableFileSize};{str(track_counter)};{createdAt};{updatedAt};{url};{sharecount};{availability};{shareLinkURL};{",".join(audio_formats)};\n")
 
     # zip up the completed package
     if re.search(REGEX_DISCOVER, description):
@@ -719,7 +717,7 @@ def process_json(data, title, url):
         announce_message(f"\t\tTemp files removed.", MESSAGE_TYPES['info'])
     except Exception as ex:
         announce_message(f"\t\tError removing folder", MESSAGE_TYPES['error'], e=ex)
-     
+
 # Main window
 root = ctk.CTk()
 root.title("YOTO Json Extractor")
