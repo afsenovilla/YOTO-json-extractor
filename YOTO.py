@@ -54,7 +54,6 @@ def announce_message(message, type=MESSAGE_TYPES['info'], e=None):
         log_text.yview_moveto(1.0) # scroll to the bottom
 
     if not silent_mode: #if user wants alerts, pop the message in a box for them
-        #BUG: this doesn't pop the message boxes. I don't know why. All the messages coming into this function are logged into the Log textbox though, so that's good. but when silent_mode is false, every message coming in here should trigger a popup
         if type is MESSAGE_TYPES['info']:
             messagebox.showinfo(type, message)
         elif type is MESSAGE_TYPES['warning']:
@@ -138,6 +137,7 @@ def stop_threads(): # currently this doesn't work so i've just disabled/removed 
     # Need kill all the threads somehow and then re-enable the "extract files" button too
 
 def toggle_silent_mode():
+    global silent_mode
     if silent_mode_toggle.get() == "on":
         announce_message("Settings changed: Silent Mode Enabled.", MESSAGE_TYPES['info'])
         silent_mode = True
