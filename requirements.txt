@@ -4,4 +4,4 @@ customtkinter==5.2.2
 mutagen==1.47.0
 Pillow==10.4.0
 py7zr==0.22.0
-Requests==2.32.3
+Requests==2.33.0
