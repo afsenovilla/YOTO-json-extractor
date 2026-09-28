@@ -69,11 +69,11 @@ jobs:
             icon_args: --icon=YJE.ico
           - os: macos-latest
             suffix: "_macos"
-            ext: ".bin"
+            ext: ".tar.gz"
             icon_args: ""
           - os: ubuntu-latest
             suffix: "_linux"
-            ext: ".bin"
+            ext: ".tar.gz"
             icon_args: ""
     runs-on: ${{ matrix.os }}
     steps:
@@ -115,17 +115,21 @@ jobs:
             --name "Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}${{ matrix.suffix }}" \
             YOTO.py
 
-      - name: Add file extension (macOS/Linux only)
-        # PyInstaller's onefile output has no extension at all on macOS/Linux
-        # (unlike Windows, where it always appends .exe itself), which made
-        # the release assets show up with no extension and no clue what they
-        # were. Give them an explicit, consistent one.
+      - name: Package as tar.gz (macOS/Linux only)
+        # On Unix a bare executable with no extension is normal and correct
+        # (ls, git, docker... none of them have one either) - that was never
+        # actually the problem. What matters is that a raw file downloaded
+        # from a browser doesn't reliably keep its +x bit, and a lone binary
+        # with no packaging is an unfamiliar download for most people. A
+        # .tar.gz is the standard way these are distributed (same as
+        # kubectl, terraform, etc.): it preserves the executable permission
+        # on extraction and is a format everyone recognizes.
         if: matrix.os != 'windows-latest'
         shell: bash
         run: |
-          base="dist/Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}${{ matrix.suffix }}"
-          mv "$base" "$base${{ matrix.ext }}"
-          chmod +x "$base${{ matrix.ext }}"
+          name="Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}${{ matrix.suffix }}"
+          chmod +x "dist/$name"
+          tar -czf "dist/$name.tar.gz" -C dist "$name"
 
       - name: Upload executable to the release
         env:
