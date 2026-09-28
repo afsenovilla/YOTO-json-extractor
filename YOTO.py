@@ -696,7 +696,8 @@ def process_json(data, title, url):
     meta_tracks_file.close()
 
     announce_message(f"\t\tWriting metadata to the Library file.", MESSAGE_TYPES['info'])
-    meta_library_file.write(f"{cardID};{title};{author};{version};{languages};{slug};{category};{str(duration)};{readableDuration};{str(fileSize)};{readableFileSize};{str(track_counter)};{createdAt};{updatedAt};{url};{sharecount};{availability};{shareLinkURL};{",".join(audio_formats)};\n")
+    audio_formats_str = ",".join(audio_formats)  # built separately: a literal '"' inside an f-string expression requires Python 3.12+ and broke parsing on 3.8-3.11
+    meta_library_file.write(f"{cardID};{title};{author};{version};{languages};{slug};{category};{str(duration)};{readableDuration};{str(fileSize)};{readableFileSize};{str(track_counter)};{createdAt};{updatedAt};{url};{sharecount};{availability};{shareLinkURL};{audio_formats_str};\n")
 
     # zip up the completed package
     if re.search(REGEX_DISCOVER, description):
