@@ -8,10 +8,11 @@ name: Build and attach release executables
 #     Releases endpoint isn't available to you.
 #  2. Publish a release by hand in the GitHub UI -- the workflow just builds
 #     and attaches the executables to that release.
-# Either way, PyInstaller builds a standalone executable for Windows, macOS
-# and Linux, one per OS-native runner (PyInstaller does not cross-compile).
-# The Windows .exe matches how every previous release's .exe was built by
-# hand; macOS and Linux builds are new.
+# Either way, PyInstaller builds a native package per OS, each on its own
+# OS-native runner (PyInstaller does not cross-compile): a Windows .exe, a
+# Linux single-binary tarball, and a macOS .app bundled into a .dmg. The
+# Windows .exe matches how every previous release's .exe was built by hand;
+# the Linux and macOS builds are new.
 on:
   push:
     tags:
@@ -67,10 +68,6 @@ jobs:
             suffix: ""
             ext: ".exe"
             icon_args: --icon=YJE.ico
-          - os: macos-latest
-            suffix: "_macos"
-            ext: ".tar.gz"
-            icon_args: ""
           - os: ubuntu-latest
             suffix: "_linux"
             ext: ".tar.gz"
@@ -115,16 +112,15 @@ jobs:
             --name "Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}${{ matrix.suffix }}" \
             YOTO.py
 
-      - name: Package as tar.gz (macOS/Linux only)
-        # On Unix a bare executable with no extension is normal and correct
-        # (ls, git, docker... none of them have one either) - that was never
-        # actually the problem. What matters is that a raw file downloaded
-        # from a browser doesn't reliably keep its +x bit, and a lone binary
-        # with no packaging is an unfamiliar download for most people. A
-        # .tar.gz is the standard way these are distributed (same as
-        # kubectl, terraform, etc.): it preserves the executable permission
-        # on extraction and is a format everyone recognizes.
-        if: matrix.os != 'windows-latest'
+      - name: Package as tar.gz (Linux only)
+        # A bare Unix executable with no extension is normal (ls, git,
+        # docker...), but a raw file downloaded from a browser doesn't
+        # reliably keep its +x bit, and a lone binary with no packaging is
+        # an unfamiliar download for most people. tar.gz is the standard
+        # way single binaries like this are distributed (kubectl,
+        # terraform, ...) and preserves the executable permission on
+        # extraction.
+        if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           name="Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}${{ matrix.suffix }}"
@@ -138,5 +134,63 @@ jobs:
         run: |
           gh release upload "${{ steps.tag.outputs.tag }}" \
             "dist/Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}${{ matrix.suffix }}${{ matrix.ext }}" \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+  build-macos-dmg:
+    needs: [ensure-release]
+    if: always() && (needs.ensure-release.result == 'success' || needs.ensure-release.result == 'skipped')
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ needs.ensure-release.outputs.tag }}" ]; then
+            echo "tag=${{ needs.ensure-release.outputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build .app bundle
+        # No --onefile here: on macOS that produces a bare Mach-O binary
+        # with no icon and no Info.plist, not a real Mac app. --windowed
+        # alone makes PyInstaller emit a proper dist/<name>.app bundle.
+        run: |
+          pyinstaller --windowed \
+            --name "Yoto Json Extractor" \
+            YOTO.py
+
+      - name: Package .dmg
+        run: |
+          app="dist/Yoto Json Extractor.app"
+          staging="dmg_staging"
+          mkdir "$staging"
+          cp -R "$app" "$staging/"
+          ln -s /Applications "$staging/Applications"
+          hdiutil create -volname "Yoto Json Extractor" \
+            -srcfolder "$staging" \
+            -ov -format UDZO \
+            "dist/Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}_macos.dmg"
+
+      - name: Upload .dmg to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" \
+            "dist/Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}_macos.dmg" \
             --repo "${{ github.repository }}" \
             --clobber
