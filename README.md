@@ -4,7 +4,7 @@
 
 **Yoto JSON Extractor** is a Python-based tool that helps you download and process JSON data from Yoto URLs. It extracts and compress audio files and images, and embeds metadata into audio files for easier management of Yoto card content.
 
-> 🛠️ **v1.2.5 maintenance note:** the app and its design are entirely [@afsenovilla](https://github.com/afsenovilla)'s work. This release's dependency updates, the Python 3.8-3.11 compatibility fix, and the automated `.exe` build workflow were done with the help of Claude.
+> 🛠️ **v1.3.0 maintenance note:** the app and its design are entirely [@afsenovilla](https://github.com/afsenovilla)'s work. This release's dependency updates, bug fixes, and the automated multi-platform build workflow were done with the help of Claude.
 
 ---
 
@@ -105,7 +105,6 @@ The tool currently supports downloading audio files in **AAC** or **MP3** format
 
 - [X] Add progress bar to the GUI for download status
 - [X] Add user settings for customizing download options
-- [ ] Improve metadata customization options
 - [X] Implement support for more audio formats
 - [X] Optimize error handling for specific network issues (network failures during download no longer die silently — they're now caught and logged)
 - [ ] Test cross-platform compatibility — macOS/Linux builds now exist (see below), pending someone actually running them and confirming
