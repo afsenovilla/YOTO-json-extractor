@@ -1,10 +1,19 @@
 name: Build and attach Windows executable
 
-# Runs whenever a GitHub Release is published (draft -> published, or created
-# directly as published). Builds the .exe with PyInstaller on a Windows
-# runner -- matching how every previous release's .exe was built by hand --
-# and attaches it to that same release automatically.
+# Two ways in:
+#  1. Push an annotated tag matching v* -- the workflow creates the GitHub
+#     Release itself (using the tag's own annotation as the release notes,
+#     falling back to auto-generated notes), then builds and attaches the
+#     .exe. Use this from a normal git client when the GitHub API's Releases
+#     endpoint isn't available to you.
+#  2. Publish a release by hand in the GitHub UI -- the workflow just builds
+#     and attaches the .exe to that release.
+# Either way, the .exe is built fresh with PyInstaller on a Windows runner,
+# matching how every previous release's .exe was built by hand.
 on:
+  push:
+    tags:
+      - "v*"
   release:
     types: [published]
   workflow_dispatch:
@@ -17,7 +26,37 @@ permissions:
   contents: write
 
 jobs:
+  ensure-release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine tag and create release if needed
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $tag already exists, skipping creation."
+            exit 0
+          fi
+          notes="$(git tag -l --format='%(contents)' "$tag")"
+          if [ -z "$notes" ]; then
+            gh release create "$tag" --repo "${{ github.repository }}" --title "$tag" --generate-notes
+          else
+            gh release create "$tag" --repo "${{ github.repository }}" --title "$tag" --notes "$notes"
+          fi
+
   build-windows-exe:
+    needs: [ensure-release]
+    if: always() && (needs.ensure-release.result == 'success' || needs.ensure-release.result == 'skipped')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +77,8 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.tag }}" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ needs.ensure-release.outputs.tag }}" ]; then
+            echo "tag=${{ needs.ensure-release.outputs.tag }}" >> "$GITHUB_OUTPUT"
           else
             echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           fi
