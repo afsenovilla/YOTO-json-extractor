@@ -1,6 +1,6 @@
 # 🎵🎶 **Yoto JSON Extractor** 🎶🎵
 
-![Code Size](https://img.shields.io/github/languages/code-size/afsenovilla/YOTO-json-extractor) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)
+![Latest Release](https://img.shields.io/github/v/release/afsenovilla/YOTO-json-extractor) ![Code Size](https://img.shields.io/github/languages/code-size/afsenovilla/YOTO-json-extractor) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)
 
 **Yoto JSON Extractor** is a Python-based tool that helps you download and process JSON data from Yoto URLs. It extracts and compress audio files and images, and embeds metadata into audio files for easier management of Yoto card content.
 
@@ -25,7 +25,9 @@ A **compiled version** of the YOTO JSON Extractor is available as an executable 
 - **No Installation Required:** Users can run the application without needing to install Python or any dependencies.
 - **User-Friendly:** Simply double-click the executable file to start using the tool, making it accessible for all users.
 
-To get started with the executable version, just download the `.exe` file from the Releases section and double-click to run!
+To get started with the executable version, just download the `.exe` file from the [Releases](https://github.com/afsenovilla/YOTO-json-extractor/releases) section and double-click to run!
+
+> As of the latest release, the `.exe` is built automatically by a GitHub Actions workflow whenever a new release is published, so it always matches the source code and dependency versions in this repo.
 
 ---
 
@@ -108,6 +110,8 @@ The tool currently supports downloading audio files in **AAC** or **MP3** format
 - [ ] Make the app available for macOS users
 - [ ] Make the app available for Linux users
 - [X] Create a logo
+- [X] Automate `.exe` builds with GitHub Actions on release
+- [ ] Fix known bug: URL queue index can go out of range mid-batch (see `process_urls`)
 
 
 ---

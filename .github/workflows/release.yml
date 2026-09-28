@@ -1,0 +1,60 @@
+name: Build and attach Windows executable
+
+# Runs whenever a GitHub Release is published (draft -> published, or created
+# directly as published). Builds the .exe with PyInstaller on a Windows
+# runner -- matching how every previous release's .exe was built by hand --
+# and attaches it to that same release automatically.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach the .exe to"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Determine release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build executable
+        shell: bash
+        run: |
+          pyinstaller --onefile --windowed --icon=YJE.ico \
+            --name "Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}" \
+            YOTO.py
+
+      - name: Upload executable to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" \
+            "dist/Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}.exe" \
+            --repo "${{ github.repository }}" \
+            --clobber
