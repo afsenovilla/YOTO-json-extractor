@@ -107,13 +107,13 @@ The tool currently supports downloading audio files in **AAC** or **MP3** format
 - [X] Add user settings for customizing download options
 - [ ] Improve metadata customization options
 - [X] Implement support for more audio formats
-- [ ] Optimize error handling for specific network issues
-- [ ] Test cross-platform compatibility
-- [ ] Make the app available for macOS users
-- [ ] Make the app available for Linux users
+- [X] Optimize error handling for specific network issues (network failures during download no longer die silently — they're now caught and logged)
+- [ ] Test cross-platform compatibility — macOS/Linux builds now exist (see below), pending someone actually running them and confirming
+- [~] Make the app available for macOS users — build wired up via GitHub Actions, unverified until the next release run
+- [~] Make the app available for Linux users — build wired up via GitHub Actions, unverified until the next release run
 - [X] Create a logo
-- [X] Automate `.exe` builds with GitHub Actions on release
-- [ ] Fix known bug: URL queue index can go out of range mid-batch (see `process_urls`)
+- [X] Automate `.exe` builds with GitHub Actions on release (now also builds macOS/Linux binaries alongside the Windows `.exe`)
+- [X] Fix known bug: URL queue index going out of range — audited `process_urls`/`update_progress`; the indexing itself was already safe post-refactor, but found and fixed a real bug where `attempts` was double-counted on retries (so "tried 10 times" fired after ~5), plus network-level failures inside the download thread were previously swallowed silently instead of being caught and logged
 
 
 ---

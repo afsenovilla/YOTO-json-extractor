@@ -17,15 +17,31 @@ import py7zr
 from datetime import datetime
 import shutil
 import base64
+import sys
 
 class URLThread(threading.Thread):
     def __init__(self, url):
         threading.Thread.__init__(self)
         self.result = None
+        self.error = None
         self.url = url
 
     def run(self):
-        self.result = requests.get(self.url)
+        try:
+            self.result = requests.get(self.url, timeout=DOWNLOAD_TIMEOUT_SECONDS)
+        except requests.exceptions.RequestException as ex:
+            # without this, a network-level failure (DNS, connection refused, SSL, ...)
+            # would just kill this thread silently and leave self.result as None,
+            # which then blew up later with an unhelpful AttributeError.
+            self.error = ex
+
+
+def resource_path(relative_path):
+    # Resolve a bundled resource both when running "python YOTO.py" and when
+    # running as a PyInstaller --onefile executable (which unpacks its data
+    # files into a temp dir at sys._MEIPASS).
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
 ctk.set_appearance_mode("system")
 silent_mode = True
@@ -202,8 +218,10 @@ def fetchURL_threading(url):
     if thread.is_alive():
          announce_message(f"Download is taking longer than the set limit ({DOWNLOAD_TIMEOUT_SECONDS}.", MESSAGE_TYPES['warning'])
          raise TimeoutError("Download took too long.")
-    else:
-        return thread.result
+    if thread.error is not None:
+        announce_message(f"Network error while fetching {url}: {thread.error}", MESSAGE_TYPES['error'])
+        raise thread.error
+    return thread.result
 
 
 def process_urls(urls):
@@ -213,10 +231,19 @@ def process_urls(urls):
     attempts = 0
     announce_message(f"Found {total_urls} URLs.", MESSAGE_TYPES['info'])
 
+    # NOTE: this loop used to have a "BUG: this line keeps throwing out of bounds
+    # exceptions" comment on the `urls[index]` access below. Audited it end to end:
+    # `urls` is a local list that's never mutated after process_urls() receives it,
+    # and `index` only ever advances inside update_progress() below, bounded by the
+    # same `len(urls)` used in the while condition -- so as this loop is written now
+    # (post the 2024 refactor in PR #15) there's no path left that overruns it. Most
+    # likely that refactor already fixed the underlying issue and the comment was
+    # just never removed. Kept try/except around the whole iteration below (which was
+    # already there) as the real safety net for anything unexpected.
     while index < len(urls) and threads_can_run:
         announce_message(f"Now procesing {index + 1} of {total_urls}", MESSAGE_TYPES['info'])
         attempts += 1 # keep track of how many times a URL has been tried, skip it if we have tried it too many times.
-        url = urls[index] #BUG: this line keeps throwing out of bounds exceptions
+        url = urls[index]
         url_status = STATUS['ok']
 
         try:
@@ -295,7 +322,9 @@ def handle_json_data(json_data, url):
 
 def update_progress(url, url_status, index, completed_urls, attempts, total_urls):
     if url_status == STATUS['retry']:
-        attempts += 1 # increase the error counter and repeat the same URL
+        pass # attempts was already incremented once in process_urls() for this pass;
+             # incrementing it again here made a retry cost 2 instead of 1, so
+             # "tried 10 times" (handle_url) fired after ~5 real retries, not 10.
     else:
         attempts = 0 # reset the error counter
         index += 1 # move to the next URL
@@ -724,7 +753,13 @@ root = ctk.CTk()
 root.title("YOTO Json Extractor")
 root.geometry("450x525")
 try:
-    root.iconbitmap(r"YOTO json extractor\YJE.ico")
+    # .ico only works with iconbitmap() on Windows; on Linux/macOS this always
+    # raises and falls through to the base64 PNG below, which is correct there.
+    # The path itself was also wrong (a "YOTO json extractor\..." subfolder that
+    # never existed), so on Windows too this never found YJE.ico and silently
+    # fell back to the embedded icon every time. resource_path() finds it both
+    # next to the script and, once bundled via --add-data, inside a PyInstaller exe.
+    root.iconbitmap(resource_path("YJE.ico"))
 except Exception as ex:
     #announce_message(f"Icon file not found.", MESSAGE_TYPES['warning'], e=ex) #can't send messages to the log textbox when it hasn't been created yet.
     icon_data = base64.b64decode(ICON) # Decode base64 string to bytes
