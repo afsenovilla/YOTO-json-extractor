@@ -69,11 +69,11 @@ jobs:
             icon_args: --icon=YJE.ico
           - os: macos-latest
             suffix: "_macos"
-            ext: ""
+            ext: ".bin"
             icon_args: ""
           - os: ubuntu-latest
             suffix: "_linux"
-            ext: ""
+            ext: ".bin"
             icon_args: ""
     runs-on: ${{ matrix.os }}
     steps:
@@ -114,6 +114,18 @@ jobs:
           pyinstaller --onefile --windowed ${{ matrix.icon_args }} \
             --name "Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}${{ matrix.suffix }}" \
             YOTO.py
+
+      - name: Add file extension (macOS/Linux only)
+        # PyInstaller's onefile output has no extension at all on macOS/Linux
+        # (unlike Windows, where it always appends .exe itself), which made
+        # the release assets show up with no extension and no clue what they
+        # were. Give them an explicit, consistent one.
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          base="dist/Yoto_Json_Extractor_${{ steps.tag.outputs.tag }}${{ matrix.suffix }}"
+          mv "$base" "$base${{ matrix.ext }}"
+          chmod +x "$base${{ matrix.ext }}"
 
       - name: Upload executable to the release
         env:
