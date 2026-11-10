@@ -2,6 +2,6 @@ beautifulsoup4==4.15.0
 CTkMessagebox==2.7
 customtkinter==6.0.0
 mutagen==1.48.1
-Pillow==12.3.0
+Pillow==13.0.0
 py7zr==1.1.3
 Requests==2.34.2
